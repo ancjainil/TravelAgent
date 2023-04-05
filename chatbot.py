@@ -1,5 +1,7 @@
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.protobuf.json_format import MessageToDict
+from KnowledgeBase import create_knowledge_base, scrape
+
 
 if __name__ == '__main__':
     session_client = dialogflow.SessionsClient()
@@ -20,9 +22,13 @@ if __name__ == '__main__':
             user_name = parameters_dict['person']['name']
             print("LOG - Detected new user: " + user_name)
 
+        # country detected
         if 'geo-country' in parameters_dict:
             country = parameters_dict['geo-country']
             print("LOG - Detected new country: " + country)
+            # build a knowledge base for that country
+            kb_id = create_knowledge_base(country)
+            scrape(country, kb_id)
 
         # extract what information the user would like to know
         if 'intent' in response_dict:
@@ -32,3 +38,7 @@ if __name__ == '__main__':
         endConversation = str(response.query_result.intent.display_name)
         print(response.query_result.fulfillment_text)
         user_input = input()
+
+
+
+
