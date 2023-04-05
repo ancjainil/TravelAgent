@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import re
 import nltk
 from nltk import sent_tokenize
+from nltk import punkt
 
 def validate_sentence_length(sentences: list) -> list:
     """
@@ -113,14 +114,22 @@ def create_knowledge_base(country: str) -> str:
     client = dialogflow.KnowledgeBasesClient()
     project_path = client.common_project_path("s4395-travel-agent-bapg")
 
-    knowledge_base = dialogflow.KnowledgeBase(display_name=country)
+    # if a knowledge base has already been created for the country, return the existing ID
+    existing_kb_list = client.list_knowledge_bases(parent='projects/s4395-travel-agent-bapg')
+    for kb in existing_kb_list:
+        if kb.display_name == country:
+            return kb.name
 
+    knowledge_base = dialogflow.KnowledgeBase(display_name=country)
 
     response = client.create_knowledge_base(
         parent=project_path, knowledge_base=knowledge_base
     )
 
+    dialogflow.CreateKnowledgeBaseRequest()
+
     print("Knowledge Base created for country {}:\n".format(country))
     print("Display Name: {}\n".format(response.display_name))
     print("Name: {}\n".format(response.name))
+    scrape(country,response.name)
     return response.name
