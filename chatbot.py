@@ -4,7 +4,6 @@ from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
 from google.protobuf.json_format import MessageToDict
 from KnowledgeBase import create_knowledge_base, HEADER_LIST
-from nltk import sent_tokenize
 
 PROJECT_ID = 's4395-travel-agent-bapg'
 
@@ -141,7 +140,12 @@ if __name__ == '__main__':
                 kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
                 if kb_response:
                     print(get_random_intro_sentence())
-                    print(kb_response)
+
+                    response_sentences = kb_response.split('\n')
+                    if len(response_sentences) > 0:
+                        for x in range(3):
+                            if x < len(response_sentences):
+                                print(response_sentences[x])
         else:
             print(response.query_result.fulfillment_text)
 
