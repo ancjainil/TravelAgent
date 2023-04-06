@@ -1,9 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-import nltk
 from nltk import sent_tokenize
-from nltk import punkt
+
+HEADER_LIST = ["Understand", "Regions", "Cities", "Other_destinations", "Get_in", "Get_around", "See", "Do", "Talk", "Buy", "Eat", "Drink", "Sleep","Stay_healthy", "Stay_safe", "Connect","Respect"]
 
 def validate_sentence_length(sentences: list) -> list:
     """
@@ -34,13 +34,12 @@ def scrape(country: str, knowledge_base_id: str) -> None:
 
     # Send a GET request to the URL and store the response
     response = requests.get(url)
-    header_list = ["Understand", "Regions", "Cities", "Other_destinations", "Get_in", "Get_around", "See", "Do", "Talk", "Buy", "Eat", "Drink", "Sleep","Stay_healthy", "Stay_safe", "Connect","Respect"]
 
     # Use Beautiful Soup to parse the HTML content of the page
     soup = BeautifulSoup(response.content, 'html.parser')
 
     # Find the header you're interested in (in this case, the "See" header)
-    for key in header_list:
+    for key in HEADER_LIST:
         html_content = ''
         header = soup.find('span', {'id': key})
 
