@@ -84,7 +84,11 @@ def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_
     """
     response = make_dialogflow_request(user_input, kb_id)
 
-    knowledge_base_answers = response.query_result.knowledge_answers.answers #+ response.alternative_query_results.knowledge_answers.answers
+    knowledge_base_answers = response.query_result.knowledge_answers.answers
+
+    for result in response.alternative_query_results:
+        knowledge_base_answers += result.knowledge_answers.answers
+
     for answer in knowledge_base_answers:
         if current_kbid_doc_mapping[intent] in answer.source:
             return answer.answer
@@ -136,9 +140,7 @@ if __name__ == '__main__':
             if intent_name in HEADER_LIST:
                 kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
                 if kb_response:
-                    print()
                     print(get_random_intro_sentence())
-                    print()
                     print(kb_response)
         else:
             print(response.query_result.fulfillment_text)
