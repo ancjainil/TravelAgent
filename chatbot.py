@@ -1,4 +1,6 @@
 import random
+import os
+import json
 
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
@@ -6,6 +8,33 @@ from google.protobuf.json_format import MessageToDict
 from KnowledgeBase import create_knowledge_base, HEADER_LIST
 
 PROJECT_ID = 's4395-travel-agent-bapg'
+CURRENT_COUNTRIES = ["Canada", "Chile", "France", "Germany","Peru", "Italy"]
+
+def save_user_data(file_name: str, data: dict) -> None:
+    """
+    Saves user information in their personal user file
+    Args: str, dict
+        file_name: the file to write to
+        data: the data to write to the file
+    Returns: None
+    """
+    with open(file_name, 'w') as f:
+        json.dump(data, f)
+
+# Define a function to load a user's data from a file
+def load_user_data(file_name: str) -> dict:
+    """
+   Extracts users information from their user file
+    Args: str
+        file_name: the file to pull from aka the user file
+    returns dict
+        the extracted user data
+    """
+    if os.path.exists(filename):
+        with open(filename, 'r') as f:
+            return json.load(f)
+    else:
+        return {}
 
 def get_random_intro_sentence() -> str:
     """
@@ -50,6 +79,23 @@ def make_dialogflow_request(user_input: str, kb_id: str = None) -> DetectIntentR
     )
     return session_client.detect_intent(request=request)
 
+def get_kb_name_of_country(country: str) -> str:
+    """
+    Returns the knowledgebase id for a country
+    Args: str
+       country: the country to find the knowledgebase of
+    Returns: str
+      the knowledgebase ID of that country
+    """
+    # Create a client
+    client = dialogflow.KnowledgeBasesClient()
+    request = dialogflow.ListKnowledgeBasesRequest(parent=f"projects/{PROJECT_ID}")
+    page_result = client.list_knowledge_bases(request=request)
+
+    # Handle the response
+    for response in page_result:
+       if response.display_name == country:
+           return response.name
 
 def map_doc_name_to_id(kb_id) -> dict:
     """
@@ -101,12 +147,14 @@ def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_
 if __name__ == '__main__':
     session_client = dialogflow.SessionsClient()
     session = session_client.session_path(PROJECT_ID, 'current-user-id')
+    user_dict = {"name":"","countries":[], "interests":[]}
 
     # TODO: should we be able to support multiple countries in the current context?
+    ## ^ You can switch between countries now if you say the name explicitly, 
     current_kbid = None
     current_kbid_doc_mapping = None
-
     user_input = 'Hello'
+    filename = None
     while user_input != 'exit':
         response = make_dialogflow_request(user_input, None)
 
@@ -118,15 +166,30 @@ if __name__ == '__main__':
         if 'person' in parameters_dict:
             user_name = parameters_dict['person']['name']
             print("LOG - Detected new user: " + user_name)
+            filename = f"{user_name}.json"
+            if not os.path.exists(filename):
+                    user_dict["name"] = user_name
+                    save_user_data(filename, user_dict)
+            else:
+                user_dict = load_user_data(filename)
+                print(f"Welcome back {user_name}! How can I help you?")
+                user_input = input()
+                continue
+
 
         # country detected
         if 'geo-country' in parameters_dict:
             country = parameters_dict['geo-country']
-            print("LOG - Detected new country: " + country)
-
-            # build a knowledge base for that country if it does not already exist
-            current_kbid = create_knowledge_base(country)
+            print("LOG - Detected country: " + country)
+            if country in CURRENT_COUNTRIES:
+                current_kbid = get_kb_name_of_country(country)
+            else:
+                # build a knowledge base for that country if it does not already exist
+                current_kbid = create_knowledge_base(country)
+                CURRENT_COUNTRIES.append(country)
             current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
+            user_dict["countries"].append(country)       
+    
 
         # extract what information the user would like to know
         if 'intent' in response_dict and 'displayName' in response_dict['intent']:
@@ -137,6 +200,7 @@ if __name__ == '__main__':
 
             # check if we should reference the knowledge base of a certain header
             if intent_name in HEADER_LIST:
+                user_dict["interests"].append(intent_name)
                 kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
                 if kb_response:
                     print(get_random_intro_sentence())
@@ -148,5 +212,7 @@ if __name__ == '__main__':
                                 print(response_sentences[x])
         else:
             print(response.query_result.fulfillment_text)
-
+        
         user_input = input()
+        if filename:
+            save_user_data(filename, user_dict)
