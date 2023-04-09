@@ -7,6 +7,89 @@ from KnowledgeBase import create_knowledge_base, HEADER_LIST
 
 PROJECT_ID = 's4395-travel-agent-bapg'
 
+def form_understand_intent_response(kb_response: str) -> str:
+    return 'TODO: Understand response'
+
+def form_regions_intent_response(kb_response: str) -> str:
+    return 'TODO: Regions response'
+def form_cities_intent_response(kb_response: str) -> str:
+    return 'TODO: cities response'
+
+def form_destinations_intent_response(kb_response: str) -> str:
+    return 'TODO: Other Destinations response'
+
+def form_get_in_intent_response(kb_response: str) -> str:
+    return 'TODO: Get In response'
+
+def form_get_around_intent_response(kb_response: str) -> str:
+    return 'TODO: Get Around response'
+
+def form_see_intent_response(kb_response: str) -> str:
+    return 'TODO: See response'
+
+def form_do_intent_response(kb_response: str) -> str:
+    return 'TODO: Do response'
+
+def form_talk_intent_response(kb_response: str) -> str:
+    return 'TODO: Talk response'
+
+def form_buy_intent_response(kb_response: str) -> str:
+    return 'TODO: Buy response'
+
+def form_eat_intent_response(kb_response: str) -> str:
+    return 'TODO: Eat response'
+
+def form_drink_intent_response(kb_response: str) -> str:
+    return 'TODO: Drink response'
+def form_sleep_intent_response(kb_response: str) -> str:
+    return 'TODO: Sleep response'
+def form_stay_healthy_intent_response(kb_response: str) -> str:
+    return 'TODO: Stay Healthy response'
+
+def form_stay_safe_intent_response(kb_response: str) -> str:
+    return 'TODO: Stay Safe response'
+
+def form_connect_intent_response(kb_response: str) -> str:
+    return 'TODO: Connect response'
+
+def form_respect_intent_response(kb_response: str) -> str:
+    return 'TODO: Respect response'
+def kb_intent_response(kb_response: str, intent_name: str) -> str:
+    if intent_name == "Understand":
+        return form_understand_intent_response(kb_response)
+    elif intent_name == "Regions":
+        return form_regions_intent_response(kb_response)
+    elif intent_name == "Cities":
+        return form_cities_intent_response(kb_response)
+    elif intent_name == "Other destinations":
+        return form_destinations_intent_response(kb_response)
+    elif intent_name == "Get in":
+        return form_get_in_intent_response(kb_response)
+    elif intent_name == "Get around":
+        return form_get_around_intent_response(kb_response)
+    elif intent_name == "See":
+        return form_see_intent_response(kb_response)
+    elif intent_name == "Do":
+        return form_do_intent_response(kb_response)
+    elif intent_name == "Talk":
+        return form_talk_intent_response(kb_response)
+    elif intent_name == "Buy":
+        return form_buy_intent_response(kb_response)
+    elif intent_name == "Eat":
+        return form_eat_intent_response(kb_response)
+    elif intent_name == "Drink":
+        return form_drink_intent_response(kb_response)
+    elif intent_name == "Sleep":
+        return form_sleep_intent_response(kb_response)
+    elif intent_name == "Stay healthy":
+        return form_stay_healthy_intent_response(kb_response)
+    elif intent_name == "Stay safe":
+        return form_stay_safe_intent_response(kb_response)
+    elif intent_name == "Connect":
+        return form_connect_intent_response(kb_response)
+    elif intent_name == "Respect":
+        return form_respect_intent_response(kb_response)
+
 def get_random_intro_sentence() -> str:
     """
     Returns a random sentence to introduce the knowledge base results in a conversational way
@@ -133,19 +216,12 @@ if __name__ == '__main__':
             intent_name = response_dict['intent']['displayName']
 
             print("LOG - Detected new user intent: " + intent_name)
-            print(response.query_result.fulfillment_text)
+            #print(response.query_result.fulfillment_text)
 
             # check if we should reference the knowledge base of a certain header
             if intent_name in HEADER_LIST:
                 kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
-                if kb_response:
-                    print(get_random_intro_sentence())
-
-                    response_sentences = kb_response.split('\n')
-                    if len(response_sentences) > 0:
-                        for x in range(3):
-                            if x < len(response_sentences):
-                                print(response_sentences[x])
+                print(kb_intent_response(kb_response, intent_name))
         else:
             print(response.query_result.fulfillment_text)
 
