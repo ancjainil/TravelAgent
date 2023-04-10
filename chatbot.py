@@ -1,6 +1,7 @@
 import random
 import os
 import json
+from typing import Optional
 
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
@@ -118,7 +119,7 @@ def map_doc_name_to_id(kb_id) -> dict:
         mapping[response.display_name] = response.name
     return mapping
 
-def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_mapping) -> str:
+def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_mapping) -> Optional[str]:
     """
     Queries a specific Dialogflow knowledge base document
     Args:
@@ -156,6 +157,7 @@ if __name__ == '__main__':
     current_kbid_doc_mapping = None
     user_input = 'Hello'
     filename = None
+    country = None
     while user_input != 'exit':
         response = make_dialogflow_request(user_input, None)
 
@@ -197,13 +199,17 @@ if __name__ == '__main__':
             intent_name = response_dict['intent']['displayName']
 
             print("LOG - Detected new user intent: " + intent_name)
-            print(response.query_result.fulfillment_text)
 
             # check if we should reference the knowledge base of a certain header
-            if intent_name in HEADER_LIST:
+            if intent_name in HEADER_LIST and country:
                 user_dict["interests"].append(intent_name)
                 kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
-                print(kb_intent_response(kb_response, intent_name))
+                if kb_response is not None:
+                    print(response.query_result.fulfillment_text + ' ' + kb_intent_response(kb_response, intent_name, country))
+                else:
+                    print(response.query_result.fulfillment_text)
+            else:
+                print(response.query_result.fulfillment_text)
         else:
             print(response.query_result.fulfillment_text)
         
