@@ -69,13 +69,14 @@ if __name__ == '__main__':
     session = session_client.session_path(PROJECT_ID, 'current-user-id')
     user_dict = {"name":"","countries":[], "interests":[], "dislikes:":[]}
 
-    # TODO: should we be able to support multiple countries in the current context?
-    ## ^ You can switch between countries now if you say the name explicitly, 
     current_kbid = None
     current_kbid_doc_mapping = None
     user_input = 'Hello'
     filename = None
     country = None
+
+    is_first_request = True
+
     while user_input != 'exit':
         response = make_dialogflow_request(session, session_client, user_input, None)
 
@@ -84,23 +85,28 @@ if __name__ == '__main__':
 
         # collect information about the user
         parameters_dict = response_dict['parameters']
-        if 'person' in parameters_dict:
-            user_name = parameters_dict['person']['name']
-            print("LOG - Detected new user: " + user_name)
-            filename = f"{user_name}.json"
-            if not os.path.exists(filename):
-                    user_dict["name"] = user_name
-                    save_user_data(filename, user_dict)
-            else:
-                user_dict = load_user_data(filename)
-                last_country = user_dict["countries"][-1]
-                print(f"Welcome back {user_name}, would you like to continue discussing about {last_country}?")
-                user_input = input()
-                continue
+        if 'person' in parameters_dict and is_first_request:
+            if 'name' in parameters_dict['person']:
+                user_name = parameters_dict['person']['name']
+                print("LOG - Detected new user: " + user_name)
+                filename = f"{user_name}.json"
+                if not os.path.exists(filename):
+                        user_dict["name"] = user_name
+                        save_user_data(filename, user_dict)
+                else:
+                    user_dict = load_user_data(filename)
+                    if len(user_dict["countries"]) > 0:
+                        last_country = user_dict["countries"][-1]
+                        print(f"Welcome back {user_name}, let's continue working on planning your trip to {last_country}!")
+                        user_input = f"I want to go to {last_country}"
+                    else:
+                        print(f"Welcome back {user_name}, how can I help you today?")
+                        user_input = input()
+                is_first_request = False
 
 
         # country detected
-        if 'geo-country' in parameters_dict:
+        if 'geo-country' in parameters_dict and parameters_dict['geo-country'] != '':
             country = parameters_dict['geo-country']
             print("LOG - Detected country: " + country)
             if country in CURRENT_COUNTRIES:
