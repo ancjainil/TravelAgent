@@ -8,52 +8,12 @@ from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
 from google.protobuf.json_format import MessageToDict
 from KnowledgeBase import create_knowledge_base, HEADER_LIST
 from IntentParsing import *
+from common_functions import *
 
 PROJECT_ID = 's4395-travel-agent-bapg'
 CURRENT_COUNTRIES = ["Canada", "Chile", "France", "Germany","Peru", "Italy"]
 
-def save_user_data(file_name: str, data: dict) -> None:
-    """
-    Saves user information in their personal user file
-    Args: str, dict
-        file_name: the file to write to
-        data: the data to write to the file
-    Returns: None
-    """
-    with open(file_name, 'w') as f:
-        json.dump(data, f)
-
-# Define a function to load a user's data from a file
-def load_user_data(file_name: str) -> dict:
-    """
-   Extracts users information from their user file
-    Args: str
-        file_name: the file to pull from aka the user file
-    returns dict
-        the extracted user data
-    """
-    if os.path.exists(filename):
-        with open(filename, 'r') as f:
-            return json.load(f)
-    else:
-        return {}
-
-def get_random_intro_sentence() -> str:
-    """
-    Returns a random sentence to introduce the knowledge base results in a conversational way
-    Args: None
-    Returns: str
-      the randomly chosen string
-    """
-    potential_sentences = [
-        'Here are some ideas from the web:',
-        'I found a few options for you online!',
-        'What do you think about these ideas I found?',
-        'Here are some results I found:'
-    ]
-    return random.choice(potential_sentences)
-
-def make_dialogflow_request(user_input: str, kb_id: str = None) -> DetectIntentResponse:
+def make_dialogflow_request(session, session_client, user_input: str, kb_id: str = None) -> DetectIntentResponse:
     """
     Makes a basic request to the Google Dialogflow agent
     Args:
@@ -67,7 +27,7 @@ def make_dialogflow_request(user_input: str, kb_id: str = None) -> DetectIntentR
 
     if kb_id:
         knowledge_base_path = dialogflow.KnowledgeBasesClient.knowledge_base_path(
-            PROJECT_ID, current_kbid[len(kb_id) - 27:]
+            PROJECT_ID, kb_id[len(kb_id) - 27:]
         )
 
         query_params = dialogflow.QueryParameters(
@@ -81,45 +41,7 @@ def make_dialogflow_request(user_input: str, kb_id: str = None) -> DetectIntentR
     )
     return session_client.detect_intent(request=request)
 
-def get_kb_name_of_country(country: str) -> str:
-    """
-    Returns the knowledgebase id for a country
-    Args: str
-       country: the country to find the knowledgebase of
-    Returns: str
-      the knowledgebase ID of that country
-    """
-    # Create a client
-    client = dialogflow.KnowledgeBasesClient()
-    request = dialogflow.ListKnowledgeBasesRequest(parent=f"projects/{PROJECT_ID}")
-    page_result = client.list_knowledge_bases(request=request)
-
-    # Handle the response
-    for response in page_result:
-       if response.display_name == country:
-           return response.name
-
-def map_doc_name_to_id(kb_id) -> dict:
-    """
-    Returns a dict of a knowledge base's documents and their ID values
-    Args:
-        kb_id: knowledge base id you want to list documents for
-    Returns: dict
-      maps a document's display name (e.g. "Cities") to its ID
-    """
-    mapping = {}
-    client = dialogflow.DocumentsClient()
-    request = dialogflow.ListDocumentsRequest(
-        parent=kb_id,
-    )
-    page_result = client.list_documents(request=request)
-
-    # Handle the response
-    for response in page_result:
-        mapping[response.display_name] = response.name
-    return mapping
-
-def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_mapping) -> Optional[str]:
+def search_knowledge_base_by_intent(session, session_client, user_input, kb_id, intent, current_kbid_doc_mapping) -> Optional[str]:
     """
     Queries a specific Dialogflow knowledge base document
     Args:
@@ -129,27 +51,23 @@ def search_knowledge_base_by_intent(user_input, kb_id, intent, current_kbid_doc_
     Returns: str
       the raw response from the Dialogflow knowledge base query
     """
-    response = make_dialogflow_request(user_input, kb_id)
 
+    response = make_dialogflow_request(session, session_client, user_input, kb_id)
     knowledge_base_answers = response.query_result.knowledge_answers.answers
-
     for result in response.alternative_query_results:
         knowledge_base_answers += result.knowledge_answers.answers
-
     for answer in knowledge_base_answers:
         if current_kbid_doc_mapping[intent] in answer.source:
             return answer.answer
-
     if len(knowledge_base_answers) > 0:
         return knowledge_base_answers[0].answer
-
     return None
 
 
 if __name__ == '__main__':
     session_client = dialogflow.SessionsClient()
     session = session_client.session_path(PROJECT_ID, 'current-user-id')
-    user_dict = {"name":"","countries":[], "interests":[]}
+    user_dict = {"name":"","countries":[], "interests":[], "dislikes:":[]}
 
     # TODO: should we be able to support multiple countries in the current context?
     ## ^ You can switch between countries now if you say the name explicitly, 
@@ -159,7 +77,7 @@ if __name__ == '__main__':
     filename = None
     country = None
     while user_input != 'exit':
-        response = make_dialogflow_request(user_input, None)
+        response = make_dialogflow_request(session, session_client, user_input, None)
 
         # convert response to a dictionary for parsing
         response_dict = MessageToDict(response.query_result._pb)
@@ -175,7 +93,8 @@ if __name__ == '__main__':
                     save_user_data(filename, user_dict)
             else:
                 user_dict = load_user_data(filename)
-                print(f"Welcome back {user_name}! How can I help you?")
+                last_country = user_dict["countries"][-1]
+                print(f"Welcome back {user_name}, would you like to continue discussing about {last_country}?")
                 user_input = input()
                 continue
 
@@ -186,6 +105,7 @@ if __name__ == '__main__':
             print("LOG - Detected country: " + country)
             if country in CURRENT_COUNTRIES:
                 current_kbid = get_kb_name_of_country(country)
+                print(f"Retrieved {current_kbid}")
             else:
                 # build a knowledge base for that country if it does not already exist
                 current_kbid = create_knowledge_base(country)
@@ -193,17 +113,22 @@ if __name__ == '__main__':
             current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
             user_dict["countries"].append(country)       
     
-
+        
         # extract what information the user would like to know
         if 'intent' in response_dict and 'displayName' in response_dict['intent']:
             intent_name = response_dict['intent']['displayName']
+            if intent_name == "Dislike":
+                disliked = parameters_dict['Disliked']
+                user_dict["dislikes"].append(disliked) 
+                print(response.query_result.fulfillment_text)
+   
+
 
             print("LOG - Detected new user intent: " + intent_name)
-
             # check if we should reference the knowledge base of a certain header
             if intent_name in HEADER_LIST and country:
                 user_dict["interests"].append(intent_name)
-                kb_response = search_knowledge_base_by_intent(user_input, current_kbid, intent_name, current_kbid_doc_mapping)
+                kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid, intent_name, current_kbid_doc_mapping)
                 if kb_response is not None:
                     print(response.query_result.fulfillment_text + ' ' + kb_intent_response(kb_response, intent_name, country))
                 else:
@@ -213,6 +138,7 @@ if __name__ == '__main__':
         else:
             print(response.query_result.fulfillment_text)
         
-        user_input = input()
         if filename:
             save_user_data(filename, user_dict)
+        user_input = input()
+       

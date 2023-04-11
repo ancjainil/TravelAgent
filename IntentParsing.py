@@ -1,9 +1,10 @@
+from typing import List
 from nltk.corpus import wordnet as wn
 from nltk.tokenize import sent_tokenize
 import locationtagger
 import warnings
 
-def get_words_in_synsets(text: str, synsets: [str]) -> [str]:
+def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     warnings.filterwarnings('ignore')
     words = []
     for word in text.split():
@@ -26,7 +27,7 @@ def create_word_list_string(words) -> str:
         return response[:len(response) - 2]
     else:
         return ''
-def form_understand_intent_response(kb_response: str, country_name: str) -> str:
+def form_understand_intent_response(kb_response: str) -> str:
     return sent_tokenize(kb_response)[0]
 
 def form_cities_intent_response(kb_response: str, country_name: str) -> str:
