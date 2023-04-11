@@ -1,9 +1,47 @@
-from typing import List
+from typing import List, Optional
 from nltk.corpus import wordnet as wn
 from nltk.tokenize import sent_tokenize
+from google.cloud import dialogflow_v2beta1 as df
 import locationtagger
 import warnings
+import operator
 
+
+def get_raw_kb_text(doc_name: str) -> str:
+    client = df.DocumentsClient()
+    return str(client.get_document(name=doc_name))
+
+def get_most_frequent_words_in_synsets(text: str, synsets: List[str], num_to_return: int, banned_words: Optional[List[str]] = []) -> List[str]:
+    warnings.filterwarnings('ignore')
+
+    word_counts = {}
+    for word in text.split():
+        word = word.lower()
+        if word not in banned_words:
+            hyper = lambda s: s.hypernyms()
+            word_synsets = wn.synsets(word)
+            if len(word_synsets) > 0:
+                hypernyms = list(word_synsets[0].closure(hyper))
+                for synset in synsets:
+                    if synset in hypernyms:
+                        if word in word_counts:
+                            word_counts[word] += 1
+                        # check if singular form of word is already counted
+                        elif len(word) > 1 and word[:len(word)-1] in word_counts:
+                            word_counts[word[:len(word)-1]] += 1
+                        # check if plural form of word is already counted
+                        elif word + 's' in word_counts:
+                            word_counts[ word + 's'] += 1
+                        else:
+                            word_counts[word] = 1
+    sorted_words = sorted(word_counts.items(), key=operator.itemgetter(1), reverse=True)
+
+    result = []
+    x = 0
+    while x < len(sorted_words) and x < num_to_return:
+        result.append(sorted_words[x][0])
+        x+=1
+    return result
 def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     warnings.filterwarnings('ignore')
     words = []
@@ -20,11 +58,18 @@ def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     return words
 
 def create_word_list_string(words) -> str:
-    if len(words) > 0:
+    if len(words) == 1:
+        return words[0]
+    elif len(words) == 2:
+        return words[0] + ' and ' + words[1]
+    elif len(words) > 0:
         response = ''
-        for word in words:
-            response += word + ', '
-        return response[:len(response) - 2]
+        for x in range(len(words)):
+            if x == len(words) - 1:
+                response += 'and ' + words[x]
+            else:
+                response += words[x] + ', '
+        return response
     else:
         return ''
 def form_understand_intent_response(kb_response: str) -> str:
@@ -140,10 +185,9 @@ def form_buy_intent_response(kb_response: str, country_name: str) -> str:
             product_words)
     return sent_tokenize(kb_response)[0]
 
-def form_eat_intent_response(kb_response: str, country_name: str) -> str:
+def form_eat_intent_response(kb_response: str, country_name: str, current_kbid_doc_mapping: dict) -> str:
     food_synsets = [
         wn.synset('food.n.01'),
-        wn.synset('drink.n.01'),
         wn.synset('fruit.n.01'),
         wn.synset('vegetable.n.01'),
         wn.synset('meat.n.01'),
@@ -151,21 +195,50 @@ def form_eat_intent_response(kb_response: str, country_name: str) -> str:
         wn.synset('dessert.n.01')
     ]
 
-    food_words = get_words_in_synsets(kb_response, food_synsets)
+    article = get_raw_kb_text(current_kbid_doc_mapping['Eat'])
+
+    # food words that appear frequently and are not useful
+    banned_words = [
+        'food',
+        'fruit',
+        'vegetable',
+        'dessert',
+        'snack',
+        'butter',
+        'potatoes',
+        'potato',
+        'lunch',
+        'dinner',
+        'breakfast',
+        'candy'
+    ]
+
+    food_words = get_most_frequent_words_in_synsets(article, food_synsets, 5, banned_words)
     if len(food_words) > 0:
-        return 'Here are some foods that ' + country_name + ' is known for: ' + create_word_list_string(food_words)
+        return 'I recommend ordering ' + create_word_list_string(food_words) + ' from a local restaurant.'
     return sent_tokenize(kb_response)[0]
 
-def form_drink_intent_response(kb_response: str, country_name: str) -> str:
+def form_drink_intent_response(kb_response: str, country_name: str, current_kbid_doc_mapping: dict) -> str:
     drink_synsets = [
         wn.synset('drink.n.01'),
         wn.synset('alcohol.n.01'),
         wn.synset('beverage.n.01'),
     ]
 
-    drink_words = get_words_in_synsets(kb_response, drink_synsets)
+    # drink words that appear frequently and are not useful
+    banned_words = [
+        'alcohol',
+        'beverage',
+        'beverages',
+        'drink',
+        'water'
+    ]
+
+    article = get_raw_kb_text(current_kbid_doc_mapping['Drink'])
+
+    drink_words = get_most_frequent_words_in_synsets(article, drink_synsets, 5, banned_words)
     if len(drink_words) > 0:
-        return 'Here are some drinks that ' + country_name + ' is known for: ' + create_word_list_string(drink_words)
+        return 'The best drinks to try in ' + country_name + ' are ' + create_word_list_string(drink_words) + '.'
     return sent_tokenize(kb_response)[0]
 def form_sleep_intent_response(kb_response: str, country_name: str) -> str:
     lodging_synsets = [
@@ -195,7 +268,7 @@ def form_connect_intent_response(kb_response: str, country_name: str) -> str:
 
 def form_respect_intent_response(kb_response: str, country_name: str) -> str:
     return sent_tokenize(kb_response)[0]
-def kb_intent_response(kb_response: str, intent_name: str, country_name: str) -> str:
+def kb_intent_response(kb_response: str, intent_name: str, country_name: str, current_kbid_doc_mapping: Optional[dict] = None) -> str:
     if intent_name == "Understand":
         return form_understand_intent_response(kb_response, country_name)
     elif intent_name == "Regions":
@@ -217,9 +290,9 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str) ->
     elif intent_name == "Buy":
         return form_buy_intent_response(kb_response, country_name)
     elif intent_name == "Eat":
-        return form_eat_intent_response(kb_response, country_name)
+        return form_eat_intent_response(kb_response, country_name, current_kbid_doc_mapping)
     elif intent_name == "Drink":
-        return form_drink_intent_response(kb_response, country_name)
+        return form_drink_intent_response(kb_response, country_name,  current_kbid_doc_mapping)
     elif intent_name == "Sleep":
         return form_sleep_intent_response(kb_response, country_name)
     elif intent_name == "Stay_healthy":
