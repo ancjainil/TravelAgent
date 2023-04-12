@@ -487,14 +487,16 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
     """
     food_synsets = [
         wn.synset('food.n.01'),
-        wn.synset('drink.n.01'),
         wn.synset('fruit.n.01'),
         wn.synset('vegetable.n.01'),
         wn.synset('meat.n.01'),
         wn.synset('snack.n.01'),
         wn.synset('dessert.n.01')
     ]
+
     article = get_raw_kb_text(current_kbid_doc_mapping['Eat'])
+
+    # food words that appear frequently and are not useful
     banned_words = [
         'food',
         'fruit',
@@ -507,19 +509,15 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
         'lunch',
         'dinner',
         'breakfast',
-        'candy'
+        'candy',
+        'meal',
+        'meals'
     ]
 
-    food_words = get_most_frequent_words_in_synsets(article, food_synsets, 5, banned_words)
+    food_words = get_most_frequent_words_in_synsets(article, food_synsets, 5, 0.05, banned_words)
     if len(food_words) > 0:
-        return 'Here are some foods that ' + country_name + ' is known for: ' + create_word_list_string(
-            [x for x in food_words if not any(dislike in x.lower() for dislike in dislikes)])
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+        return 'I recommend ordering ' + create_word_list_string(food_words) + ' from a local restaurant.'
+    return sent_tokenize(kb_response)[0]
 
 
 def form_drink_intent_response(kb_response: str, country_name: str, dislikes: List[str],
@@ -540,6 +538,7 @@ def form_drink_intent_response(kb_response: str, country_name: str, dislikes: Li
         wn.synset('beverage.n.01'),
     ]
 
+    # drink words that appear frequently and are not useful
     banned_words = [
         'alcohol',
         'beverage',
@@ -547,17 +546,13 @@ def form_drink_intent_response(kb_response: str, country_name: str, dislikes: Li
         'drink',
         'water'
     ]
+
     article = get_raw_kb_text(current_kbid_doc_mapping['Drink'])
-    drink_words = get_most_frequent_words_in_synsets(article, drink_synsets, 5, banned_words)
+
+    drink_words = get_most_frequent_words_in_synsets(article, drink_synsets, 5, 0.05, banned_words)
     if len(drink_words) > 0:
-        return 'Here are some drinks that ' + country_name + ' is known for: ' + create_word_list_string(
-            [x for x in drink_words if not any(dislike in x.lower() for dislike in dislikes)])
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+        return 'The best drinks to try in ' + country_name + ' are ' + create_word_list_string(drink_words) + '.'
+    return sent_tokenize(kb_response)[0]
 
 
 def form_sleep_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:

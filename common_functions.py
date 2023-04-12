@@ -6,7 +6,7 @@ from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
 
 PROJECT_ID = 's4395-travel-agent-bapg'
-CURRENT_COUNTRIES = ["Canada", "Chile", "France", "Germany","Peru", "Italy"]
+CURRENT_COUNTRIES = ['United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'United Kingdom', 'France', 'Germany', 'Italy', 'Spain', 'Russia', 'China', 'Japan', 'South Korea', 'India', 'Australia', 'New Zealand', 'Egypt', 'South Africa', 'Nigeria']
 
 def save_user_data(file_name: str, data: dict) -> None:
     """
@@ -84,12 +84,8 @@ def make_dialogflow_request(session, session_client, user_input: str, kb_id: str
     query_input = dialogflow.types.QueryInput(text=text_input)
 
     if kb_id:
-        knowledge_base_path = dialogflow.KnowledgeBasesClient.knowledge_base_path(
-            PROJECT_ID, kb_id[len(kb_id) - 27:]
-        )
-
         query_params = dialogflow.QueryParameters(
-            knowledge_base_names=[knowledge_base_path]
+            knowledge_base_names=[kb_id]
         )
     else:
         query_params = None
