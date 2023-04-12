@@ -39,6 +39,10 @@ if __name__ == '__main__':
                         print(
                             f"Welcome back {user_name}, let's continue working on planning your trip to {last_country}!")
                         user_input = f"I want to go to {last_country}"
+                        make_dialogflow_request(session, session_client, user_input, None)
+                        response = {}
+                        response_dict = {}
+                        parameters_dict = {'geo-country':last_country}
                     else:
                         print(f"Welcome back {user_name}, how can I help you today?")
                         user_input = input()
@@ -81,7 +85,8 @@ if __name__ == '__main__':
                 else:
                     print(response.query_result.fulfillment_text)
         else:
-            print(response.query_result.fulfillment_text)
+            if 'query_result' in response:
+                print(response.query_result.fulfillment_text)
 
         if filename:
             save_user_data(filename, user_dict)
