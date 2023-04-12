@@ -1,7 +1,3 @@
-import os
-
-from google.cloud import dialogflow_v2beta1 as dialogflow
-from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
 from google.protobuf.json_format import MessageToDict
 from KnowledgeBase import create_knowledge_base, HEADER_LIST
 from IntentParsing import *

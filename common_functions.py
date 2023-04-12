@@ -1,6 +1,6 @@
 import os
 import json
-
+from typing import Optional
 
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
