@@ -24,6 +24,7 @@ if __name__ == '__main__':
 
         # collect information about the user
         parameters_dict = response_dict['parameters']
+        should_skip = False
         if 'person' in parameters_dict and is_first_request:
             if 'name' in parameters_dict['person']:
                 user_name = parameters_dict['person']['name']
@@ -50,7 +51,7 @@ if __name__ == '__main__':
 
         # country detected
         if 'geo-country' in parameters_dict and parameters_dict['geo-country'] != '':
-            # check if it's the same country in the current context and resent without the name
+            # check if it's the same country in the current context and resend without the name
             if country == parameters_dict['geo-country']:
                 user_input = user_input.lower().replace(country.lower(), 'it')
                 response = make_dialogflow_request(session, session_client, user_input, None)
@@ -60,6 +61,11 @@ if __name__ == '__main__':
 
                 # collect information about the user
                 parameters_dict = response_dict['parameters']
+
+                if 'intent' in response_dict and 'displayName' in response_dict['intent']:
+                    intent_name = response_dict['intent']['displayName']
+                    if intent_name == 'Default Fallback' or intent_name == 'Talk':
+                        should_skip = True
             else:
                 country = parameters_dict['geo-country']
                 print("LOG - Detected country: " + country)
@@ -73,15 +79,17 @@ if __name__ == '__main__':
                 current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 user_dict["countries"].append(country)
 
-            # extract what information the user would like to know
-        if 'intent' in response_dict and 'displayName' in response_dict['intent']:
+        # extract what information the user would like to know
+        if 'intent' in response_dict and 'displayName' in response_dict['intent'] and not should_skip:
             intent_name = response_dict['intent']['displayName']
             print("LOG - Detected user intent: " + intent_name)
-            if intent_name == "Dislike":
+            if intent_name == "Welcome Intent" and user_dict["name"] != '':
+                print("How can I help you today?")
+            elif intent_name == "Dislike":
                 disliked = parameters_dict['Disliked']
                 user_dict["dislikes"].append(disliked)
                 print(response.query_result.fulfillment_text)
-            elif intent_name == "Default Fallback":
+            elif intent_name == "Default Fallback" and not should_skip:
                 print("EXPERIMENTAL DEFAULT FALLBACK")
                 response = make_dialogflow_request(session, session_client, user_input, current_kbid)
                 answers = response.query_result.knowledge_answers.answers
@@ -105,7 +113,7 @@ if __name__ == '__main__':
                         print("Sorry, can you rephrase your question?")
                 else:
                     print("Sorry, I didn't get that.")
-            else:
+            elif not should_skip:
                 # check if we should reference the knowledge base of a certain header
                 if intent_name in HEADER_LIST and country:
                     user_dict["interests"].append(intent_name)
