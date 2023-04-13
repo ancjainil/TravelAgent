@@ -80,6 +80,8 @@ def make_dialogflow_request(session, session_client, user_input: str, kb_id: str
     Returns: dict
       the raw response from Dialogflow
     """
+    if user_input == '':
+        user_input = 'Null'
     text_input = dialogflow.types.TextInput(text=user_input, language_code='en-US')
     query_input = dialogflow.types.QueryInput(text=text_input)
 
@@ -113,7 +115,5 @@ def search_knowledge_base_by_intent(session, session_client, user_input, kb_id, 
     for answer in knowledge_base_answers:
         if current_kbid_doc_mapping[intent] in answer.source:
             return answer.answer
-    if len(knowledge_base_answers) > 0:
-        return knowledge_base_answers[0].answer
     return None
 

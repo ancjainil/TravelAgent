@@ -205,7 +205,7 @@ def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
             x+=1
     return result
 
-def form_understand_intent_response(kb_response: str, dislikes: List[str]) -> str:
+def form_understand_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
     """
     Formats the response for the "understand" intent
         Args: str
@@ -319,28 +319,6 @@ def form_get_around_intent_response(kb_response: str, country_name: str, dislike
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    transport_synsets = [
-        wn.synset('transportation.n.01'),
-        wn.synset('vehicle.n.01'),
-        wn.synset('car.n.01'),
-        wn.synset('bus.n.01'),
-        wn.synset('train.n.01'),
-        wn.synset('subway.n.01'),
-        wn.synset('tram.n.01'),
-        wn.synset('aircraft.n.01'),
-        wn.synset('taxi.n.01'),
-        wn.synset('ship.n.01'),
-        wn.synset('boat.n.01'),
-        wn.synset('bicycle.n.01'),
-        wn.synset('motorcycle.n.01'),
-        wn.synset('scooter.n.01'),
-        wn.synset('helicopter.n.01'),
-    ]
-
-    transport_words = get_words_in_synsets(kb_response, transport_synsets)
-    if len(transport_words) > 0:
-        return 'Here are the best ways to get around in ' + country_name + ': ' + create_word_list_string(
-            [x for x in transport_words if not any(dislike in x.lower() for dislike in dislikes)])
     sents = sent_tokenize(kb_response)
     for sentence in sents:
         if any(dislike in sentence for dislike in dislikes):
@@ -442,7 +420,7 @@ def form_talk_intent_response(kb_response: str, country_name: str, dislikes: Lis
             return sentence
 
 
-def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
+def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "buy" intent
         Args: str
@@ -452,25 +430,22 @@ def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    product_synsets = [
-        wn.synset('product.n.01'),
-        wn.synset('product.n.02'),
-        wn.synset('product.n.03'),
-        wn.synset('commodity.n.01'),
-        wn.synset('merchandise.n.01'),
-        wn.synset('article.n.01')
+    currency_synsets = [
+        wn.synset('monetary_unit.n.01')
     ]
-
-    product_words = get_words_in_synsets(kb_response, product_synsets)
-    if len(product_words) > 0:
-        return 'Here are the best things you can buy in ' + country_name + ': ' + create_word_list_string(
-            [x for x in product_words if not any(dislike in x.lower() for dislike in dislikes)])
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+    banned_words = [
+        'money',
+        'cash',
+        'coins',
+        'coin',
+        'banknote',
+        'banknotes'
+    ]
+    article = get_raw_kb_text(current_kbid_doc_mapping['Buy'])
+    currency_word = get_most_frequent_words_in_synsets(article, currency_synsets, 1, banned_words=banned_words)
+    if len(currency_word) > 0:
+        return 'To go shopping in ' + country_name + ', you will need to use the local currency, the ' + currency_word[0] + '.'
+    return ''
 
 
 def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List[str],
@@ -511,7 +486,8 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
         'breakfast',
         'candy',
         'meal',
-        'meals'
+        'meals',
+        'halal'
     ]
 
     food_words = get_most_frequent_words_in_synsets(article, food_synsets, 5, 0.05, banned_words)
@@ -565,22 +541,6 @@ def form_sleep_intent_response(kb_response: str, country_name: str, dislikes: Li
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    lodging_synsets = [
-        wn.synset('lodging.n.01'),
-        wn.synset('hotel.n.01'),
-        wn.synset('motel.n.01'),
-        wn.synset('resort.n.01'),
-        wn.synset('guesthouse.n.01'),
-        wn.synset('inn.n.01'),
-        wn.synset('boarding_house.n.01'),
-        wn.synset('bed_and_breakfast.n.01'),
-        wn.synset('campground.n.01'),
-    ]
-
-    lodging_words = get_words_in_synsets(kb_response, lodging_synsets)
-    if len(lodging_words) > 0:
-        return 'Here are the recommended options for spending your time in ' + country_name + ': ' + create_word_list_string(
-            [x for x in lodging_words if not any(dislike in x.lower() for dislike in dislikes)])
     sents = sent_tokenize(kb_response)
     for sentence in sents:
         if any(dislike in sentence for dislike in dislikes):
@@ -689,7 +649,7 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
     elif intent_name == "Talk":
         return form_talk_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Buy":
-        return form_buy_intent_response(kb_response, country_name, dislikes)
+        return form_buy_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Eat":
         return form_eat_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Drink":

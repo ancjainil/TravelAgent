@@ -37,7 +37,7 @@ if __name__ == '__main__':
                     if len(user_dict["countries"]) > 0:
                         last_country = user_dict["countries"][-1]
                         print(
-                            f"Welcome back {user_name}, let's continue working on planning your trip to {last_country}!")
+                            f"Welcome back {user_name}, let's continue researching your trip to {last_country}!")
                         user_input = f"I want to go to {last_country}"
                         make_dialogflow_request(session, session_client, user_input, None)
                         response = {}
@@ -50,16 +50,28 @@ if __name__ == '__main__':
 
         # country detected
         if 'geo-country' in parameters_dict and parameters_dict['geo-country'] != '':
-            country = parameters_dict['geo-country']
-            print("LOG - Detected country: " + country)
-            if country in CURRENT_COUNTRIES:
-                current_kbid = get_kb_name_of_country(country)
+            # check if it's the same country in the current context and resent without the name
+            if country == parameters_dict['geo-country']:
+                user_input = user_input.lower().replace(country.lower(), 'it')
+                response = make_dialogflow_request(session, session_client, user_input, None)
+
+                # convert response to a dictionary for parsing
+                response_dict = MessageToDict(response.query_result._pb)
+
+                # collect information about the user
+                parameters_dict = response_dict['parameters']
             else:
-                # build a knowledge base for that country if it does not already exist
-                current_kbid = create_knowledge_base(country)
-                CURRENT_COUNTRIES.append(country)
-            current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
-            user_dict["countries"].append(country)
+                country = parameters_dict['geo-country']
+                print("LOG - Detected country: " + country)
+
+                if country in CURRENT_COUNTRIES:
+                    current_kbid = get_kb_name_of_country(country)
+                else:
+                    # build a knowledge base for that country if it does not already exist
+                    current_kbid = create_knowledge_base(country)
+                    CURRENT_COUNTRIES.append(country)
+                current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
+                user_dict["countries"].append(country)
 
             # extract what information the user would like to know
         if 'intent' in response_dict and 'displayName' in response_dict['intent']:
@@ -69,6 +81,30 @@ if __name__ == '__main__':
                 disliked = parameters_dict['Disliked']
                 user_dict["dislikes"].append(disliked)
                 print(response.query_result.fulfillment_text)
+            elif intent_name == "Default Fallback":
+                print("EXPERIMENTAL DEFAULT FALLBACK")
+                response = make_dialogflow_request(session, session_client, user_input, current_kbid)
+                answers = response.query_result.knowledge_answers.answers
+                if len(answers) > 0:
+                    answer = answers[0].answer
+
+                    x = 0
+                    found_result = False
+                    while x < len(nltk.sent_tokenize(answer)) and not found_result:
+                        sentence = nltk.sent_tokenize(answer)[x]
+                        has_word_in_common = False
+                        for word in nltk.word_tokenize(user_input):
+                            if len(word) > 4 and sentence.lower().find(word.lower()) != -1:
+                                has_word_in_common = True
+                        if len(sentence.split()) < 100 and has_word_in_common:
+                            print(sentence)
+                            found_result = True
+                        x+=1
+
+                    if not found_result:
+                        print("Sorry, can you rephrase your question?")
+                else:
+                    print("Sorry, I didn't get that.")
             else:
                 # check if we should reference the knowledge base of a certain header
                 if intent_name in HEADER_LIST and country:
