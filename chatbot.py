@@ -119,13 +119,12 @@ if __name__ == '__main__':
                     user_dict["interests"].append(intent_name)
                     kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid,
                                                                   intent_name, current_kbid_doc_mapping)
-                    if kb_response is not None:
-                        print(
-                            response.query_result.fulfillment_text + ' ' + kb_intent_response(kb_response, intent_name,
-                                                                                              country, user_dict,
-                                                                                              current_kbid_doc_mapping))
-                    else:
-                        print(response.query_result.fulfillment_text)
+                    if kb_response is None:
+                        kb_response = ''
+                    print(
+                        response.query_result.fulfillment_text + ' ' + kb_intent_response(kb_response, intent_name,
+                                                                                          country, user_dict,
+                                                                                          current_kbid_doc_mapping))
                 else:
                     print(response.query_result.fulfillment_text)
         else:

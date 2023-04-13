@@ -2,12 +2,107 @@ from typing import List, Optional
 
 import nltk
 from nltk.corpus import wordnet as wn
+from nltk.corpus.reader import Synset
 from nltk.tokenize import sent_tokenize
 from google.cloud import dialogflow_v2beta1 as df
 import locationtagger
 import warnings
 import operator
 
+
+def parse_synsets_from_kb(kb_response: str, kb_doc_name: str, synsets: [Synset], banned_words: [str]) -> [str]:
+    """
+    First dynamically checks kb response for synsets. If none are detected, checks the raw article text.
+        Args: str, str, List[str], dict
+            kb_response: the response from dialog flow
+            kb_doc_name: the document to pull raw text from if necessary
+            synsets: the synsets to search for
+        Returns: str
+      a list of words that match the given synsets
+    """
+    words = get_most_frequent_words_in_synsets(kb_response, synsets, 5, 0, banned_words)
+    if len(words) > 0:
+        return words
+    article = get_raw_kb_text(kb_doc_name)
+    words = get_most_frequent_words_in_synsets(article, synsets, 5, 0, banned_words)
+    return words
+
+
+def parse_locations_from_kb(kb_response: str, kb_doc_name: str, cities: bool = False, regions: bool = False,
+                            banned_words=None) -> [str]:
+    """
+    First dynamically checks kb response for locations. If none are detected, checks the raw article text.
+        Args: str, str, List[str], dict
+            kb_response: the response from dialog flow
+            kb_doc_name: the document to pull raw text from if necessary
+            cities: whether cities should be included
+            regions: whether regions should be included
+            banned_words: strings to avoid returning in the response
+        Returns: str
+      a list of words that match the given locations
+    """
+    if banned_words is None:
+        banned_words = []
+    location_names = []
+    if kb_response and kb_response != '':
+        locations = locationtagger.find_locations(text=kb_response)
+        if cities:
+            location_names += locations.cities
+        if regions:
+            location_names += locations.regions
+    if len(location_names) == 0:
+        article = get_raw_kb_text(kb_doc_name)
+        locations = locationtagger.find_locations(text=article)
+        if cities:
+            location_names += locations.cities
+        if regions:
+            location_names += locations.regions
+    result = []
+    for location_name in location_names:
+        if location_name.lower() not in banned_words:
+            result.append(location_name.title())
+    return result[:5]
+
+def parse_words_from_kb(kb_response: str, kb_doc_name: str, words: [str], banned_words: [str]) -> [str]:
+    """
+    First dynamically checks kb response for specified words. If none are detected, checks the raw article text.
+        Args: str, str, List[str], dict
+            kb_response: the response from dialog flow
+            kb_doc_name: the document to pull raw text from if necessary
+            words: the strings to search for
+            banned_words: strings to avoid returning in the response
+        Returns: str
+      a list of words that match the given strings
+    """
+    word_counts = {}
+
+    # get most frequent words in response
+    for word in words:
+        if word.lower() in kb_response.lower():
+            if word.lower() in word_counts:
+                word_counts[word.lower()] += 1
+            else:
+                word_counts[word.lower()] = 1
+
+    if len(word_counts) == 0:
+        # otherwise, check the article text
+        article = get_raw_kb_text(kb_doc_name)
+        for word in words:
+            if word.lower() in article.lower():
+                if word.lower() in word_counts:
+                    word_counts[word.lower()] += 1
+                else:
+                    word_counts[word.lower()] = 1
+
+    sorted_words = sorted(word_counts.items(), key=operator.itemgetter(1), reverse=True)
+
+    result = []
+    x = 0
+    while x < len(sorted_words) < 5:
+        if sorted_words[x][0] not in banned_words:
+            result.append(sorted_words[x][0])
+        x += 1
+    return result
 
 def get_raw_kb_text(doc_name: str) -> str:
     """
@@ -158,6 +253,7 @@ def create_word_list_string(words: List[str]) -> str:
     else:
         return ''
 
+
 def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
     """
     Given a body of text, attempts to identify all proper noun phrases
@@ -178,19 +274,19 @@ def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
 
             # check if the proper noun starts with 'the'
             if x > 0:
-                if pos_tags[x-1][1] == 'DT':
-                    proper_noun = pos_tags[x-1][0] + ' ' + proper_noun
-            x+=1
+                if pos_tags[x - 1][1] == 'DT':
+                    proper_noun = pos_tags[x - 1][0] + ' ' + proper_noun
+            x += 1
 
             # check if the next word is also a proper noun or a connector
             while x < len(pos_tags) and (pos_tags[x][1] == 'NNP' or pos_tags[x][1] == 'IN'):
                 # only consider a connecting word if it is followed by another proper noun
                 if pos_tags[x][1] == 'IN':
-                    if x < len(pos_tags)-1 and pos_tags[x+1][1] == 'NNP':
+                    if x < len(pos_tags) - 1 and pos_tags[x + 1][1] == 'NNP':
                         proper_noun += ' ' + pos_tags[x][0]
                 else:
                     proper_noun += ' ' + pos_tags[x][0]
-                x+=1
+                x += 1
 
             # checks to ensure the phrases returned are substantial
             if proper_noun.replace(" ", "").isalpha() and \
@@ -202,8 +298,9 @@ def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
                 if len(result) == max:
                     return result
         else:
-            x+=1
+            x += 1
     return result
+
 
 def form_understand_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
     """
@@ -222,73 +319,68 @@ def form_understand_intent_response(kb_response: str, country_name: str, dislike
             return sentence
 
 
-def form_cities_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
+def form_cities_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "cities" intent
         Args: str, str, List[str]
             kb_response: the response from dialog flow
             country_name: the current country
             dislikes: list of forbidden words to suggest
+            current_kbid_doc_mapping: to use knowledge base documents
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    locations = locationtagger.find_locations(text=kb_response)
-    city_words = locations.cities
-    if len(city_words) > 0:
-        return "I recommend you don't miss " + create_word_list_string(
-            [city for city in city_words[:3] if not any(dislike in city.lower() for dislike in dislikes)]) + '.'
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+    location_words = parse_locations_from_kb(
+        kb_response,
+        current_kbid_doc_mapping['Cities'],
+        cities=True,
+        banned_words=dislikes + [country_name.lower()]
+    )
+    if len(location_words) > 0:
+        return "I recommend you don't miss " + create_word_list_string(location_words) + '.'
 
 
-def form_regions_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
+def form_regions_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "regions" intent
         Args: str
             kb_response: the response from dialog flow
             country_name: the current country
             dislikes: list of forbidden words to suggest
+            current_kbid_doc_mapping: to use knowledge base documents
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    locations = locationtagger.find_locations(text=kb_response)
-    region_words = locations.regions
-    if len(region_words) > 0:
-        return 'Make sure to spend plenty of time in the regions of ' + create_word_list_string(
-            [region for region in region_words if not any(dislike in region.lower() for dislike in dislikes)]) + "."
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+    location_words = parse_locations_from_kb(
+        kb_response,
+        current_kbid_doc_mapping['Regions'],
+        regions=True,
+        banned_words= dislikes + [country_name.lower()]
+    )
+    if len(location_words) > 0:
+        return 'Make sure to spend plenty of time in the regions of ' + create_word_list_string(location_words) + "."
 
 
-def form_destinations_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
+def form_destinations_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "other destinations" intent
         Args: str
             kb_response: the response from dialog flow
             country_name: the current country
             dislikes: list of forbidden words to suggest
+            current_kbid_doc_mapping: to use knowledge base documents
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    locations = locationtagger.find_locations(text=kb_response)
-    location_words = locations.regions + locations.cities
+    location_words = parse_locations_from_kb(
+        kb_response,
+        current_kbid_doc_mapping['Other_destinations'],
+        regions=True,
+        cities=True,
+        banned_words=dislikes+[country_name.lower()]
+    )
     if len(location_words) > 0:
-        return 'Here are some great spots to check out - ' + create_word_list_string(
-            [location for location in location_words[:5] if not any(dislike in location.lower() for dislike in dislikes)])
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+        return 'Here are some great spots to check out - ' + create_word_list_string(location_words) + '.'
 
 
 def form_get_in_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
@@ -327,33 +419,30 @@ def form_get_around_intent_response(kb_response: str, country_name: str, dislike
             return sentence
 
 
-def form_see_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
+def form_see_intent_response(kb_response: str, country_name: str, dislikes: List[str],
+                             current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "see" intent
         Args: str
             kb_response: the response from dialog flow
             country_name: the current country
             dislikes: list of forbidden words to suggest
-            current_kbid_doc_mapping: to use knowledgebase documents
+            current_kbid_doc_mapping: to use knowledge base documents
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    article = get_raw_kb_text(current_kbid_doc_mapping['See'])
-    banned_words = [country_name, 'City']
-    sites = get_proper_nouns(article, banned_words, 5)
+    banned_words = [country_name, 'City'] + dislikes
+    sites = get_proper_nouns(kb_response, banned_words, 5)
+    if len(sites) == 0:
+        article = get_raw_kb_text(current_kbid_doc_mapping['See'])
+        sites = get_proper_nouns(article, banned_words, 5)
+
     if len(sites) > 0:
-        return "Make sure you don't miss " + create_word_list_string(
-            [x for x in sites if not any(dislike in x.lower() for dislike in dislikes)]
-        ) + " while you are in " + country_name + '.'
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+        return "Make sure you don't miss " + create_word_list_string(sites) + " while you are in " + country_name + '.'
 
 
-def form_do_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
+def form_do_intent_response(kb_response: str, country_name: str, dislikes: List[str],
+                            current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "do" intent
         Args: str
@@ -364,22 +453,17 @@ def form_do_intent_response(kb_response: str, country_name: str, dislikes: List[
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    article = get_raw_kb_text(current_kbid_doc_mapping['Do'])
-    banned_words = [country_name, 'City']
-    sites = get_proper_nouns(article, banned_words, 5)
+    banned_words = [country_name, 'City'] + dislikes
+    sites = get_proper_nouns(kb_response, banned_words, 5)
+    if len(sites) == 0:
+        article = get_raw_kb_text(current_kbid_doc_mapping['Do'])
+        sites = get_proper_nouns(article, banned_words, 5)
     if len(sites) > 0:
-        return "Some fun events include " + create_word_list_string(
-            [x for x in sites if not any(dislike in x.lower() for dislike in dislikes)]
-        ) + '.'
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+        return "Some fun events include " + create_word_list_string(sites) + '.'
 
 
-def form_talk_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
+def form_talk_intent_response(kb_response: str, country_name: str, dislikes: List[str],
+                              current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "talk" intent
         Args: str
@@ -403,7 +487,7 @@ def form_talk_intent_response(kb_response: str, country_name: str, dislikes: Lis
         'southern',
         'eastern',
         'western'
-    ]
+    ] + dislikes
 
     language_words = get_most_frequent_words_in_synsets(article, language_synsets, 3, 0.2, banned_words)
     languages = [x.capitalize() for x in language_words if not any(dislike in x.lower() for dislike in dislikes)]
@@ -412,15 +496,10 @@ def form_talk_intent_response(kb_response: str, country_name: str, dislikes: Lis
         if len(languages) > 1:
             response += 'However, you will find that people also speak ' + create_word_list_string(languages[1:]) + '.'
         return response
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            return ''
-        else:
-            return sentence
 
 
-def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List[str], current_kbid_doc_mapping: dict) -> str:
+def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List[str],
+                             current_kbid_doc_mapping: dict) -> str:
     """
     Formats the response for the "buy" intent
         Args: str
@@ -444,7 +523,8 @@ def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List
     article = get_raw_kb_text(current_kbid_doc_mapping['Buy'])
     currency_word = get_most_frequent_words_in_synsets(article, currency_synsets, 1, banned_words=banned_words)
     if len(currency_word) > 0:
-        return 'To go shopping in ' + country_name + ', you will need to use the local currency, the ' + currency_word[0] + '.'
+        return 'To go shopping in ' + country_name + ', you will need to use the local currency, the ' + currency_word[
+            0] + '.'
     return ''
 
 
@@ -469,8 +549,6 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
         wn.synset('dessert.n.01')
     ]
 
-    article = get_raw_kb_text(current_kbid_doc_mapping['Eat'])
-
     # food words that appear frequently and are not useful
     banned_words = [
         'food',
@@ -489,8 +567,8 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
         'meals',
         'halal'
     ]
-
-    food_words = get_most_frequent_words_in_synsets(article, food_synsets, 5, 0.05, banned_words)
+    food_words = parse_synsets_from_kb(kb_response, current_kbid_doc_mapping['Eat'], food_synsets,
+                                       banned_words + dislikes)
     if len(food_words) > 0:
         return 'I recommend ordering ' + create_word_list_string(food_words) + ' from a local restaurant.'
     return sent_tokenize(kb_response)[0]
@@ -523,9 +601,8 @@ def form_drink_intent_response(kb_response: str, country_name: str, dislikes: Li
         'water'
     ]
 
-    article = get_raw_kb_text(current_kbid_doc_mapping['Drink'])
-
-    drink_words = get_most_frequent_words_in_synsets(article, drink_synsets, 5, 0.05, banned_words)
+    drink_words = parse_synsets_from_kb(kb_response, current_kbid_doc_mapping['Drink'], drink_synsets,
+                                        banned_words + dislikes)
     if len(drink_words) > 0:
         return 'The best drinks to try in ' + country_name + ' are ' + create_word_list_string(drink_words) + '.'
     return sent_tokenize(kb_response)[0]
@@ -630,37 +707,41 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
      a response to give to the user (either client created or dialogflow created)
     """
     dislikes = user_dict["dislikes"]
+    result = ''
     if intent_name == "Understand":
-        return form_understand_intent_response(kb_response, country_name, dislikes)
+        result = form_understand_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Regions":
-        return form_regions_intent_response(kb_response, country_name, dislikes)
+        result = form_regions_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Cities":
-        return form_cities_intent_response(kb_response, country_name, dislikes)
+        result = form_cities_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Other_destinations":
-        return form_destinations_intent_response(kb_response, country_name, dislikes)
+        result = form_destinations_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Get_in":
-        return form_get_in_intent_response(kb_response, country_name, dislikes)
+        result = form_get_in_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Get_around":
-        return form_get_around_intent_response(kb_response, country_name, dislikes)
+        result = form_get_around_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "See":
-        return form_see_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_see_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Do":
-        return form_do_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_do_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Talk":
-        return form_talk_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_talk_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Buy":
-        return form_buy_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_buy_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Eat":
-        return form_eat_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_eat_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Drink":
-        return form_drink_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
+        result = form_drink_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Sleep":
-        return form_sleep_intent_response(kb_response, country_name, dislikes)
+        result = form_sleep_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Stay_healthy":
-        return form_stay_healthy_intent_response(kb_response, country_name, dislikes)
+        result = form_stay_healthy_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Stay_safe":
-        return form_stay_safe_intent_response(kb_response, country_name, dislikes)
+        result = form_stay_safe_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Connect":
-        return form_connect_intent_response(kb_response, country_name, dislikes)
+        result = form_connect_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Respect":
-        return form_respect_intent_response(kb_response, country_name, dislikes)
+        result = form_respect_intent_response(kb_response, country_name, dislikes)
+    if result is not None:
+        return result
+    return ''
