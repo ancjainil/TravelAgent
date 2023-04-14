@@ -6,7 +6,7 @@ from common_functions import *
 if __name__ == '__main__':
     session_client = dialogflow.SessionsClient()
     session = session_client.session_path(PROJECT_ID, 'current-user-id')
-    user_dict = {"name": "", "countries": [], "interests": [], "dislikes": []}
+    user_dict = {"name": "", "countries": [], "interests": {}, "dislikes": []}
 
     current_kbid = None
     current_kbid_doc_mapping = None
@@ -77,6 +77,8 @@ if __name__ == '__main__':
                     current_kbid = create_knowledge_base(country)
                     CURRENT_COUNTRIES.append(country)
                 current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
+                if country in user_dict["countries"]:
+                    user_dict["countries"].remove(country)
                 user_dict["countries"].append(country)
                 should_skip = True
 
@@ -88,7 +90,8 @@ if __name__ == '__main__':
                 print("How can I help you today?")
             elif intent_name == "Dislike":
                 disliked = parameters_dict['Disliked']
-                user_dict["dislikes"].append(disliked)
+                if disliked.lower() not in user_dict["dislikes"]:
+                    user_dict["dislikes"].append(disliked.lower())
                 print(response.query_result.fulfillment_text)
             elif intent_name == "Default Fallback" and not should_skip:
                 print("EXPERIMENTAL DEFAULT FALLBACK")
@@ -117,7 +120,10 @@ if __name__ == '__main__':
             elif not should_skip:
                 # check if we should reference the knowledge base of a certain header
                 if intent_name in HEADER_LIST and country:
-                    user_dict["interests"].append(intent_name)
+                    if intent_name in user_dict["interests"]:
+                        user_dict["interests"][intent_name] += 1
+                    else:
+                        user_dict["interests"][intent_name] = 1
                     kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid,
                                                                   intent_name, current_kbid_doc_mapping)
                     if kb_response is None:
