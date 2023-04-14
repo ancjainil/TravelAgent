@@ -78,6 +78,7 @@ if __name__ == '__main__':
                     CURRENT_COUNTRIES.append(country)
                 current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 user_dict["countries"].append(country)
+                should_skip = True
 
         # extract what information the user would like to know
         if 'intent' in response_dict and 'displayName' in response_dict['intent'] and not should_skip:

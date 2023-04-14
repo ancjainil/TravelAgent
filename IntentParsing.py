@@ -10,7 +10,7 @@ import warnings
 import operator
 
 
-def parse_synsets_from_kb(kb_response: str, kb_doc_name: str, synsets: [Synset], banned_words: [str]) -> [str]:
+def parse_synsets_from_kb(kb_response: str, kb_doc_name: str, synsets: List[Synset], banned_words: List[str]) -> List[str]:
     """
     First dynamically checks kb response for synsets. If none are detected, checks the raw article text.
         Args: str, str, List[str], dict
@@ -29,7 +29,7 @@ def parse_synsets_from_kb(kb_response: str, kb_doc_name: str, synsets: [Synset],
 
 
 def parse_locations_from_kb(kb_response: str, kb_doc_name: str, cities: bool = False, regions: bool = False,
-                            banned_words=None) -> [str]:
+                            banned_words=None) -> List[str]:
     """
     First dynamically checks kb response for locations. If none are detected, checks the raw article text.
         Args: str, str, List[str], dict
@@ -63,7 +63,7 @@ def parse_locations_from_kb(kb_response: str, kb_doc_name: str, cities: bool = F
             result.append(location_name.title())
     return result[:5]
 
-def parse_words_from_kb(kb_response: str, kb_doc_name: str, words: [str], banned_words: [str]) -> [str]:
+def parse_words_from_kb(kb_response: str, kb_doc_name: str, words: List[str], banned_words:  List[str]) ->  List[str]:
     """
     First dynamically checks kb response for specified words. If none are detected, checks the raw article text.
         Args: str, str, List[str], dict
@@ -254,7 +254,7 @@ def create_word_list_string(words: List[str]) -> str:
         return ''
 
 
-def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
+def get_proper_nouns(text: str, banned_words:  List[str], max: int) ->  List[str]:
     """
     Given a body of text, attempts to identify all proper noun phrases
     Args:
@@ -509,9 +509,6 @@ def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    currency_synsets = [
-        wn.synset('monetary_unit.n.01')
-    ]
     banned_words = [
         'money',
         'cash',
@@ -521,11 +518,27 @@ def form_buy_intent_response(kb_response: str, country_name: str, dislikes: List
         'banknotes'
     ]
     article = get_raw_kb_text(current_kbid_doc_mapping['Buy'])
-    currency_word = get_most_frequent_words_in_synsets(article, currency_synsets, 1, banned_words=banned_words)
-    if len(currency_word) > 0:
-        return 'To go shopping in ' + country_name + ', you will need to use the local currency, the ' + currency_word[
-            0] + '.'
-    return ''
+    pos_tags = nltk.pos_tag(nltk.word_tokenize(article))
+    currency_word = ['dollar', 'pound', 'euro', 'yen', 'franc', 'rupee', 'ruble', 'yuan', 'yen', 'rand' 'baht', 'won', 'rial', 'lira', 'dinar', 'peso', 'real', 'shekel']
+    result = []
+    x = 0
+    while x < len(pos_tags):
+        # identifying the start of a new proper noun phrase
+        if pos_tags[x][0] in currency_word:
+            currency = pos_tags[x][0]
+
+            # check if the proper noun starts with 'the'
+            if x > 0:
+                if pos_tags[x-1][1] == 'JJ':
+                    currency = pos_tags[x-1][0] + ' ' + currency
+            
+            if currency.replace(" ", "").isalpha() and \
+                currency not in result and \
+                currency not in banned_words:
+               return 'To go shopping in ' + country_name + ', you will need to use the local currency, the ' + currency + '.'
+                
+        x+=1
+    return sent_tokenize(kb_response)[0]
 
 
 def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List[str],
