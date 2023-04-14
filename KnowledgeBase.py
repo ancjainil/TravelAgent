@@ -29,6 +29,8 @@ def scrape(country: str, knowledge_base_id: str) -> None:
     Returns: None
 
     """
+    if country.find(" "):
+        country = country.replace(" ", "_")
     # Specify the URL of the Wikivoyage page you want to scrape
     url = f'https://en.m.wikivoyage.org/wiki/{country}'
 
@@ -71,7 +73,7 @@ def scrape(country: str, knowledge_base_id: str) -> None:
             print(tags)
 
         content = bytes(content, 'utf-8')
-        #create_document(knowledge_base_id, key, 'text/plain', 'EXTRACTIVE_QA', content)
+        create_document(knowledge_base_id, key, 'text/plain', 'EXTRACTIVE_QA', content)
         # reset parse
         soup = BeautifulSoup(response.content, 'html.parser')
         
