@@ -78,6 +78,7 @@ if __name__ == '__main__':
                     CURRENT_COUNTRIES.append(country)
                 current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 user_dict["countries"].append(country)
+                should_skip = True
 
         # extract what information the user would like to know
         if 'intent' in response_dict and 'displayName' in response_dict['intent'] and not should_skip:
@@ -105,7 +106,7 @@ if __name__ == '__main__':
                             if len(word) > 4 and sentence.lower().find(word.lower()) != -1:
                                 has_word_in_common = True
                         if len(sentence.split()) < 100 and has_word_in_common:
-                            print(sentence)
+                            print("Here's what I found about that on the web: " + sentence)
                             found_result = True
                         x+=1
 

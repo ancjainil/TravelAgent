@@ -189,16 +189,27 @@ def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     return words
 
 
-def create_word_list_string(words) -> str:
+def create_word_list_string(words: [str], use_or: bool = False) -> str:
+    """
+    Separates words by commas and adds 'and' before the final word
+    Args: List[str]
+        words: the list of words to be joined
+    Returns: str
+      the list as a comma seperated string
+    """
+    if use_or:
+        connector = 'or'
+    else:
+        connector = 'and'
     if len(words) == 1:
         return words[0]
     elif len(words) == 2:
-        return words[0] + ' and ' + words[1]
+        return words[0] + ' ' + connector + ' ' + words[1]
     elif len(words) > 0:
         response = ''
         for x in range(len(words)):
             if x == len(words) - 1:
-                response += 'and ' + words[x]
+                response += connector + ' ' + words[x]
             else:
                 response += words[x] + ', '
         return response
@@ -228,30 +239,6 @@ def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
                     if word not in words:
                         words.append(word)
     return words
-
-
-def create_word_list_string(words: List[str]) -> str:
-    """
-    Separates words by commas and adds 'and' before the final word
-    Args: List[str]
-        words: the list of words to be joined
-    Returns: str
-      the list as a comma seperated string
-    """
-    if len(words) == 1:
-        return words[0]
-    elif len(words) == 2:
-        return words[0] + ' and ' + words[1]
-    elif len(words) > 0:
-        response = ''
-        for x in range(len(words)):
-            if x == len(words) - 1:
-                response += 'and ' + words[x]
-            else:
-                response += words[x] + ', '
-        return response
-    else:
-        return ''
 
 
 def get_proper_nouns(text: str, banned_words: [str], max: int) -> [str]:
@@ -383,22 +370,26 @@ def form_destinations_intent_response(kb_response: str, country_name: str, disli
         return 'Here are some great spots to check out - ' + create_word_list_string(location_words) + '.'
 
 
-def form_get_in_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
+def form_get_in_intent_response(current_kbid_doc_mapping: dict, country_name: str, dislikes: List[str]) -> str:
     """
     Formats the response for the "get in" intent
         Args: str
-            kb_response: the response from dialog flow
+            current_kbid_doc_mapping: to use knowledge base documents
             country_name: the current country
             dislikes: list of forbidden words to suggest
         Returns: str
       a response to give to the user (either client created or dialogflow created)
     """
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+    article = get_raw_kb_text(current_kbid_doc_mapping['Get_in'])
+    nouns = get_proper_nouns(article, dislikes, 100)
+    transport = []
+    for noun in nouns:
+        if 'airport' in noun.lower() or \
+            'air' in noun.lower() or \
+            'train' in noun.lower():
+            transport.append(noun)
+    if len(transport) > 0:
+        return 'To reach ' + country_name + ', you can get there through ' + create_word_list_string(transport[:3], use_or=True) + '.'
 
 
 def form_get_around_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
@@ -570,7 +561,7 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
     food_words = parse_synsets_from_kb(kb_response, current_kbid_doc_mapping['Eat'], food_synsets,
                                        banned_words + dislikes)
     if len(food_words) > 0:
-        return 'I recommend ordering ' + create_word_list_string(food_words) + ' from a local restaurant.'
+        return 'I recommend ordering ' + create_word_list_string(food_words, use_or=True) + ' from a local restaurant.'
     return sent_tokenize(kb_response)[0]
 
 
@@ -708,16 +699,14 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
     """
     dislikes = user_dict["dislikes"]
     result = ''
-    if intent_name == "Understand":
-        result = form_understand_intent_response(kb_response, country_name, dislikes)
-    elif intent_name == "Regions":
+    if intent_name == "Regions":
         result = form_regions_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Cities":
         result = form_cities_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Other_destinations":
         result = form_destinations_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Get_in":
-        result = form_get_in_intent_response(kb_response, country_name, dislikes)
+        result = form_get_in_intent_response(current_kbid_doc_mapping, country_name, dislikes)
     elif intent_name == "Get_around":
         result = form_get_around_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "See":
