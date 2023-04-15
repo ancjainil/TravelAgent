@@ -1,7 +1,7 @@
 # Travel Guide Chatbot
 There are two ways to run this chatbot, the first one being easier and less time-consuming than the second. Both will result in our python code connecting to the dialogflow chatbot, but the first option is more stable than the first.
 
-> **_NOTE:_**  We have already scraped knowledge bases for the following countries: United States, Canada, Mexico, Brazil, Argentina, United Kingdom, France, Germany, Italy, Spain, Russia, China, Japan, South Korea, India, Australia, New Zealand, Egypt, South Africa, Nigeria, and Croatia. We have implemented dynamic web scraping for other countries, but it will take a few minutes to scrape, and you may get errors during that time period.
+**NOTE:** We have already scraped knowledge bases for the following countries: United States, Canada, Mexico, Brazil, Argentina, United Kingdom, France, Germany, Italy, Spain, Russia, China, Japan, South Korea, India, Australia, New Zealand, Egypt, South Africa, Nigeria, and Croatia. We have implemented dynamic web scraping for other countries, but it will take a few minutes to scrape, and you may get errors during that time period.
 
 
 
@@ -32,7 +32,7 @@ There are two ways to run this chatbot, the first one being easier and less time
     
     b. `python -m spacy download en_core_web_sm`
 
-5. You can now run the chatbot by running the chatbot.py file
+5. You can now run the chatbot by running `python chatbot.py` with your local python installation.
 
 ## Option 2 - Requires no setup, but is less stable
 To allow for easy testing purposes, you can simply click on this dialog flow generated [link](https://console.dialogflow.com/api-client/demo/embedded/1ed112ff-ab5a-4e7a-96d4-dd4d7c29b09c) that will allow you to simply talk to to our chatbot running at this link. We have accomplished this by building a Flask web server that is integrated with Dialogflow via webhooks.
@@ -43,3 +43,17 @@ Additionally, there is the constraint that you should only mention a country's n
 
 Note that this method of running our program is unstable due to webhook constraints imposed by the free version of Dialogflow.
 
+## Sample phrases to ask our chatbot:
+- I want to visit Italy.
+- What kind of food should I eat there?
+- I don't like pizza.
+- What other meals can I eat?
+- What should I do there?
+- What should I see there?
+- Actually, I want to visit France instead.
+- What cities do you recommend?
+- What languages do they speak?
+- What is the local currency?
+- How do I stay safe there?
+- How is the weather in the summer?
+- Thank you, goodbye!
