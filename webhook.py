@@ -1,4 +1,5 @@
 import os
+import re
 
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.protobuf.json_format import MessageToDict
@@ -45,7 +46,16 @@ def webhook():
     session_client = dialogflow.SessionsClient()
 
     user_input = payload["queryResult"]["queryText"]
-    parameters_dict = payload["queryResult"]['parameters']
+    user_input = user_input.lower()
+    if "countries" in user_dict and \
+            len(user_dict["countries"]) > 0 and \
+            user_dict["countries"][-1].lower() in user_input:
+        user_input = re.sub(user_dict["countries"][-1].lower(), "", user_input)
+        response = make_dialogflow_request(session, session_client, user_input, None)
+        response_dict = MessageToDict(response.query_result._pb)
+        parameters_dict = response_dict['parameters']
+    else:
+        parameters_dict = payload["queryResult"]['parameters']
 
     # person detected
     if 'person' in parameters_dict and 'name' in parameters_dict['person']:
