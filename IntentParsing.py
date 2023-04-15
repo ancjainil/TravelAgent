@@ -650,7 +650,7 @@ def form_respect_intent_response(kb_response: str, country_name: str, dislikes: 
 
 
 def kb_intent_response(kb_response: str, intent_name: str, country_name: str, user_dict: dict,
-                       current_kbid_doc_mapping: Optional[dict] = None) -> str:
+                       current_kbid_doc_mapping: dict) -> str:
     """
     Maps the intent to the correct function to build a response
         Args: str, str, str, dict
@@ -663,9 +663,6 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
     """
     dislikes = user_dict["dislikes"]
     result = ''
-
-    if len(current_kbid_doc_mapping) < 16:
-        return ''
 
     if intent_name == "Regions":
         result = form_regions_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)

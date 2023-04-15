@@ -1,9 +1,10 @@
 import os
+import re
 
 from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.protobuf.json_format import MessageToDict
 from KnowledgeBase import create_knowledge_base, HEADER_LIST
-from chatbot import search_knowledge_base_by_intent
+from chatbot import search_knowledge_base_by_intent, add_disliked_item
 from common_functions import *
 from IntentParsing import *
 
@@ -47,90 +48,77 @@ def webhook():
     user_input = payload["queryResult"]["queryText"]
     parameters_dict = payload["queryResult"]['parameters']
 
-    should_skip = False
+    fulfill = ''
+
+    is_existing_country_intent = False
+
     # person detected
-    if 'person' in parameters_dict:
-        if 'name' in parameters_dict['person']:
+    if 'person' in parameters_dict and 'name' in parameters_dict['person']:
             user_name = parameters_dict['person']['name']
             print("Log - Detected name: " + user_name)
             filename = f"{user_name}.json"
             if not os.path.exists(filename):
                 user_dict["name"] = user_name
                 save_user_data(filename, user_dict)
+                response["fulfillmentText"] = f"Nice to meet you {user_name}, what country are you interested in visiting?"
             else:
                 user_dict = load_user_data(filename)
+
+                # user has previous countries in their JSON
                 if len(user_dict["countries"]) > 0:
                     last_country = user_dict["countries"][-1]
-                    response[
-                        "fulfillmentText"] = f"Welcome back {user_name}, let's continue researching your trip to {last_country}!"
+                    response["fulfillmentText"] = f"Welcome back {user_name}, let's continue researching your trip to {last_country}!"
+
+                    is_existing_country_intent = True
+
                     session = session_client.session_path(PROJECT_ID, user_name)
-                    print(f"DEBUG LOG session - {session}")
-                    country = last_country
-                    current_kbid = get_kb_name_of_country(country)
-                    current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
-                    return response
+
+                    # avoid showing the response from this extra request to the user
+                    parameters_dict['geo-country'] = last_country
+
+                # existing user has never indicated interest in a country
                 else:
-                    response["fulfillmentText"] = f"Welcome back {user_name}, how can I help you today?"
+                    response["fulfillmentText"] = f"Welcome back {user_name}, please let me know the name of a country you are interested in."
                     session = session_client.session_path(PROJECT_ID, user_name)
-                    return response
 
-    # returning user detected
+            # only update user info at start of conversation
+            is_first_request = False
 
+    # new country detected, so you should switch context
     if 'geo-country' in parameters_dict and parameters_dict['geo-country'] != '':
-        # if country == parameters_dict['geo-country']:
-        #     print("DEBUG - Country in same sent")
-        #     session = session_client.session_path(PROJECT_ID, "replace")
-        #     user_input = user_input.lower().replace(country.lower(), 'it')
-        #     response2 = make_dialogflow_request(session, session_client, user_input, None)
-        #     response_dict = MessageToDict(response2.query_result._pb)
-        #     print("DEBUG - Make new Request")
-
-        #     # collect information about the user
-        #     parameters_dict = response_dict['parameters']
-
-        #     if 'intent' in response_dict and 'displayName' in response_dict['intent']:
-        #         intent_name = response_dict['intent']['displayName']
-        #         intent_name = response_dict['intent']['displayName']
-        #         if intent_name == 'Default Fallback' or intent_name == 'Talk':
-        #             should_skip = True
-        #             print("SETTING SHOULD SKIP")
-
-        # else:
         country = parameters_dict['geo-country']
         print("LOG - Detected country: " + country)
 
         if country in CURRENT_COUNTRIES:
             current_kbid = get_kb_name_of_country(country)
+            print("KBID Detected: " + current_kbid)
         else:
             # build a knowledge base for that country if it does not already exist
             current_kbid = create_knowledge_base(country)
+            print("KBID Created: " + current_kbid)
             CURRENT_COUNTRIES.append(country)
+            response["fulfillmentText"] += "Warning: populating the knowledge base may take a few minutes"
+
         current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
+        if country in user_dict["countries"]:
+            user_dict["countries"].remove(country)
         user_dict["countries"].append(country)
-        should_skip = True
+
     if filename:
         save_user_data(filename, user_dict)
 
-        # extract what information the user would like to know
-
+    # extract what information the user would like to know
     query_result = payload["queryResult"]
 
     if "fulfillmentText" in query_result:
         fulfill = query_result["fulfillmentText"]
-    if 'intent' in payload["queryResult"] and not should_skip:
-        print("DEBUG LOG  - IN ITENT")
+    if 'intent' in payload["queryResult"]:
+        print("DEBUG LOG  - IN INTENT")
         intent_name = query_result['intent']['displayName']
         print("LOG - Detected user intent: " + intent_name)
-        # welcome
-        if intent_name == "Welcome Intent" and user_dict["name"] != '':
-            user_name = user_dict["name"]
-            response["fulfillmentText"] = f"Hello {user_name} How can I help you today?"
-            session = session_client.session_path(PROJECT_ID, user_name)
-            return response
         # dislike
-        elif intent_name == "Dislike":
-            disliked = parameters_dict['Disliked']
-            user_dict["dislikes"].append(disliked)
+        if intent_name == "Dislike":
+            add_disliked_item(parameters_dict['Disliked'], user_dict)
             response["fulfillmentText"] = fulfill
             return response
         # close
@@ -138,9 +126,17 @@ def webhook():
             response["fulfillmentText"] = fulfill
             return response
 
+        elif is_existing_country_intent:
+            return response
+
+        elif intent_name == "Welcome Intent":
+            response["fulfillmentText"] = "What country are you interested in visiting?"
+            return response
+
         # default
-        elif intent_name == "Default Fallback" and not should_skip:
+        elif intent_name == "Default Fallback":
             print("EXPERIMENTAL DEFAULT FALLBACK")
+
             response2 = make_dialogflow_request(session, session_client, user_input, current_kbid)
             answers = response2.query_result.knowledge_answers.answers
             if len(answers) > 0:
@@ -155,19 +151,17 @@ def webhook():
                             has_word_in_common = True
                     if len(sentence.split()) < 100 and has_word_in_common:
                         response["fulfillmentText"] = f"Here's what I found about that on the web: {sentence}"
-                        found_result = True
                         return response
                     x += 1
 
-                if not found_result:
-                    response["fulfillmentText"] = f"Sorry, can you rephrase your question?"
-                    return response
+                response["fulfillmentText"] = f"Sorry, can you rephrase your question?"
+                return response
             else:
                 response["fulfillmentText"] = f"Sorry, I didn't get that."
                 return response
 
         # other
-        elif not should_skip:
+        else:
             # check if we should reference the knowledge base of a certain header
             if intent_name in HEADER_LIST and country:
                 if "fulfillmentText" in query_result:
@@ -182,6 +176,8 @@ def webhook():
                 if filename:
                     save_user_data(filename, user_dict)
                 print("DEBUG LOG - HERE 1")
+
+                current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid,
                                                               intent_name, current_kbid_doc_mapping)
                 if kb_response is None:
@@ -200,13 +196,9 @@ def webhook():
             else:
                 response["fulfillmentText"] = fulfill
                 return response
-        else:
-            response["fulfillmentText"] = fulfill
-            return response
     else:
         response["fulfillmentText"] = fulfill
         return response
-
 
 if __name__ == '__main__':
     app.run(port=5002)
