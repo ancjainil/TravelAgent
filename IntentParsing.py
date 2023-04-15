@@ -189,7 +189,7 @@ def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     return words
 
 
-def create_word_list_string(words: [str], use_or: bool = False) -> str:
+def create_word_list_string(words: List[str], use_or: bool = False) -> str:
     """
     Separates words by commas and adds 'and' before the final word
     Args: List[str]
@@ -215,6 +215,7 @@ def create_word_list_string(words: [str], use_or: bool = False) -> str:
         return response
     else:
         return ''
+
 
 def get_proper_nouns(text: str, banned_words:  List[str], max: int) ->  List[str]:
     """
@@ -348,24 +349,8 @@ def form_get_in_intent_response(current_kbid_doc_mapping: dict, country_name: st
             transport.append(noun)
     if len(transport) > 0:
         return 'To reach ' + country_name + ', you can get there through ' + create_word_list_string(transport[:3], use_or=True) + '.'
-
-
-def form_get_around_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
-    """
-    Formats the response for the "get around" intent
-        Args: str
-            kb_response: the response from dialog flow
-            country_name: the current country
-            dislikes: list of forbidden words to suggest
-        Returns: str
-      a response to give to the user (either client created or dialogflow created)
-    """
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
+    else:
+        return f"There are many ways to reach {country_name}"
 
 
 def form_see_intent_response(kb_response: str, country_name: str, dislikes: List[str],
@@ -529,6 +514,7 @@ def form_eat_intent_response(kb_response: str, country_name: str, dislikes: List
         'meals',
         'halal'
     ]
+    print(f"DEBUG- USING KBID - {current_kbid_doc_mapping['Eat']}")
     food_words = parse_synsets_from_kb(kb_response, current_kbid_doc_mapping['Eat'], food_synsets,
                                        banned_words + dislikes)
     if len(food_words) > 0:
@@ -569,23 +555,6 @@ def form_drink_intent_response(kb_response: str, country_name: str, dislikes: Li
         return 'The best drinks to try in ' + country_name + ' are ' + create_word_list_string(drink_words) + '.'
     return sent_tokenize(kb_response)[0]
 
-
-def form_sleep_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
-    """
-    Formats the response for the "sleep" intent
-        Args: str
-            kb_response: the response from dialog flow
-            country_name: the current country
-            dislikes: list of forbidden words to suggest
-        Returns: str
-      a response to give to the user (either client created or dialogflow created)
-    """
-    sents = sent_tokenize(kb_response)
-    for sentence in sents:
-        if any(dislike in sentence for dislike in dislikes):
-            continue
-        else:
-            return sentence
 
 
 def form_stay_healthy_intent_response(kb_response: str, country_name: str, dislikes: List[str]) -> str:
@@ -678,8 +647,6 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
         result = form_destinations_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Get_in":
         result = form_get_in_intent_response(current_kbid_doc_mapping, country_name, dislikes)
-    elif intent_name == "Get_around":
-        result = form_get_around_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "See":
         result = form_see_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Do":
@@ -692,8 +659,6 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
         result = form_eat_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
     elif intent_name == "Drink":
         result = form_drink_intent_response(kb_response, country_name, dislikes, current_kbid_doc_mapping)
-    elif intent_name == "Sleep":
-        result = form_sleep_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Stay_healthy":
         result = form_stay_healthy_intent_response(kb_response, country_name, dislikes)
     elif intent_name == "Stay_safe":
@@ -704,4 +669,4 @@ def kb_intent_response(kb_response: str, intent_name: str, country_name: str, us
         result = form_respect_intent_response(kb_response, country_name, dislikes)
     if result is not None:
         return result
-    return ''
+    return 'None'
