@@ -46,16 +46,9 @@ def webhook():
     session_client = dialogflow.SessionsClient()
 
     user_input = payload["queryResult"]["queryText"]
-    # user_input = user_input.lower()
-    # if "countries" in user_dict and \
-    #         len(user_dict["countries"]) > 0 and \
-    #         user_dict["countries"][-1].lower() in user_input:
-    #     user_input = re.sub(user_dict["countries"][-1].lower(), "", user_input)
-    #     response2 = make_dialogflow_request(session, session_client, user_input, None)
-    #     print(response2)
-    #     response_dict = MessageToDict(response2.query_result._pb)
-    #     parameters_dict = response_dict['parameters']
     parameters_dict = payload["queryResult"]['parameters']
+
+    fulfill = ''
 
     # person detected
     if 'person' in parameters_dict and 'name' in parameters_dict['person'] and is_first_request:
@@ -194,13 +187,11 @@ def webhook():
                     response["fulfillmentText"] = f"{fulfill} {content}"
                     return response
             else:
-                print('here2')
                 response["fulfillmentText"] = fulfill
                 return response
     else:
         response["fulfillmentText"] = fulfill
         return response
-
 
 if __name__ == '__main__':
     app.run(port=5002)
