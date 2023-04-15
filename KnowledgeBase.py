@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 from nltk import sent_tokenize, word_tokenize, pos_tag
 
-HEADER_LIST = ["Regions", "Cities", "Other_destinations", "Get_in", "Get_around", "See", "Do", "Talk", "Buy", "Eat", "Drink", "Sleep","Stay_healthy", "Stay_safe", "Connect","Respect"]
+HEADER_LIST = ["Regions", "Cities", "Other_destinations", "Get_in", "See", "Do", "Talk", "Buy", "Eat", "Drink","Stay_healthy", "Stay_safe", "Connect","Respect"]
 
 def validate_sentence_length(sentences: list) -> list:
     """
@@ -65,12 +65,6 @@ def scrape(country: str, knowledge_base_id: str) -> None:
         sents = sent_tokenize(text)
         sents = validate_sentence_length(sents)
         content ='\n'.join(sents)
-        
-        # tag text
-        for sent in sents:
-            tokens = word_tokenize(text)
-            tags = pos_tag(tokens)
-            print(tags)
 
         content = bytes(content, 'utf-8')
         create_document(knowledge_base_id, key, 'text/plain', 'EXTRACTIVE_QA', content)

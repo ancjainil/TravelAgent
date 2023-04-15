@@ -6,7 +6,7 @@ from google.cloud import dialogflow_v2beta1 as dialogflow
 from google.cloud.dialogflow_v2beta1 import DetectIntentResponse
 
 PROJECT_ID = 's4395-travel-agent-bapg'
-CURRENT_COUNTRIES = ['United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'United Kingdom', 'France', 'Germany', 'Italy', 'Spain', 'Russia', 'China', 'Japan', 'South Korea', 'India', 'Australia', 'New Zealand', 'Egypt', 'South Africa', 'Nigeria']
+CURRENT_COUNTRIES = ['United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'United Kingdom', 'France', 'Germany', 'Italy', 'Spain', 'Russia', 'China', 'Japan', 'South Korea', 'India', 'Australia', 'New Zealand', 'Egypt', 'South Africa', 'Nigeria', 'Croatia']
 
 def save_user_data(file_name: str, data: dict) -> None:
     """
@@ -80,6 +80,7 @@ def make_dialogflow_request(session, session_client, user_input: str, kb_id: str
     Returns: dict
       the raw response from Dialogflow
     """
+    session = session_client.session_path(PROJECT_ID, 'test')
     if user_input == '':
         user_input = 'Null'
     text_input = dialogflow.types.TextInput(text=user_input, language_code='en-US')
@@ -95,7 +96,11 @@ def make_dialogflow_request(session, session_client, user_input: str, kb_id: str
     request = dialogflow.DetectIntentRequest(
         session=session, query_input=query_input, query_params=query_params
     )
-    return session_client.detect_intent(request=request)
+    result = session_client.detect_intent(request=request)
+    if result is None:
+        return None
+    else:
+        return result
 
 def search_knowledge_base_by_intent(session, session_client, user_input, kb_id, intent, current_kbid_doc_mapping) -> Optional[str]:
     """
@@ -107,8 +112,9 @@ def search_knowledge_base_by_intent(session, session_client, user_input, kb_id, 
     Returns: str
       the raw response from the Dialogflow knowledge base query
     """
-
     response = make_dialogflow_request(session, session_client, user_input, kb_id)
+    if response is None:
+        return None
     knowledge_base_answers = response.query_result.knowledge_answers.answers
     for result in response.alternative_query_results:
         knowledge_base_answers += result.knowledge_answers.answers
