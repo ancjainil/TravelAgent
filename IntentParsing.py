@@ -189,7 +189,7 @@ def get_words_in_synsets(text: str, synsets: List[str]) -> List[str]:
     return words
 
 
-def create_word_list_string(words: [str], use_or: bool = False) -> str:
+def create_word_list_string(words: List[str], use_or: bool = False) -> str:
     """
     Separates words by commas and adds 'and' before the final word
     Args: List[str]
