@@ -87,6 +87,8 @@ if __name__ == '__main__':
             if not os.path.exists(filename):
                 user_dict["name"] = user_name
                 save_user_data(filename, user_dict)
+                print(
+                    f"Nice to meet you {user_name}, what country are you interested in visiting?")
             else:
                 user_dict = load_user_data(filename)
 
