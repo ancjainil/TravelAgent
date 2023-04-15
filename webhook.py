@@ -50,14 +50,17 @@ def webhook():
 
     fulfill = ''
 
+    is_existing_country_intent = False
+
     # person detected
-    if 'person' in parameters_dict and 'name' in parameters_dict['person'] and is_first_request:
+    if 'person' in parameters_dict and 'name' in parameters_dict['person']:
             user_name = parameters_dict['person']['name']
             print("Log - Detected name: " + user_name)
             filename = f"{user_name}.json"
             if not os.path.exists(filename):
                 user_dict["name"] = user_name
                 save_user_data(filename, user_dict)
+                response["fulfillmentText"] = f"Nice to meet you {user_name}, what country are you interested in visiting?"
             else:
                 user_dict = load_user_data(filename)
 
@@ -66,21 +69,17 @@ def webhook():
                     last_country = user_dict["countries"][-1]
                     response["fulfillmentText"] = f"Welcome back {user_name}, let's continue researching your trip to {last_country}!"
 
+                    is_existing_country_intent = True
+
                     session = session_client.session_path(PROJECT_ID, user_name)
 
-                    # load the current country context into Dialogflow
-                    user_input = f"I want to go to {last_country}"
-                    make_dialogflow_request(session, session_client, user_input, None)
-
                     # avoid showing the response from this extra request to the user
-                    response = {}
                     parameters_dict['geo-country'] = last_country
 
                 # existing user has never indicated interest in a country
                 else:
                     response["fulfillmentText"] = f"Welcome back {user_name}, please let me know the name of a country you are interested in."
                     session = session_client.session_path(PROJECT_ID, user_name)
-                    return response
 
             # only update user info at start of conversation
             is_first_request = False
@@ -120,10 +119,18 @@ def webhook():
         # dislike
         if intent_name == "Dislike":
             add_disliked_item(parameters_dict['Disliked'], user_dict)
+            response["fulfillmentText"] = fulfill
             return response
         # close
         elif intent_name == "Close":
             response["fulfillmentText"] = fulfill
+            return response
+
+        elif is_existing_country_intent:
+            return response
+
+        elif intent_name == "Welcome Intent":
+            response["fulfillmentText"] = "What country are you interested in visiting?"
             return response
 
         # default
