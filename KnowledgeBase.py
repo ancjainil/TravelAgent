@@ -65,12 +65,6 @@ def scrape(country: str, knowledge_base_id: str) -> None:
         sents = sent_tokenize(text)
         sents = validate_sentence_length(sents)
         content ='\n'.join(sents)
-        
-        # tag text
-        for sent in sents:
-            tokens = word_tokenize(text)
-            tags = pos_tag(tokens)
-            print(tags)
 
         content = bytes(content, 'utf-8')
         create_document(knowledge_base_id, key, 'text/plain', 'EXTRACTIVE_QA', content)

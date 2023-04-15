@@ -50,7 +50,6 @@ def webhook():
     user_input = payload["queryResult"]["queryText"]
     parameters_dict = payload["queryResult"]['parameters']
 
-    should_skip = False
     #person detected
     if 'person' in parameters_dict:
             if 'name' in parameters_dict['person']:
@@ -93,7 +92,6 @@ def webhook():
             parameters_dict = response_dict['parameters']
 
             if 'intent' in response_dict and 'displayName' in response_dict['intent']:
-                intent_name = response_dict['intent']['displayName']
                 intent_name = response_dict['intent']['displayName']
                 if intent_name == 'Default Fallback' or intent_name == 'Talk':
                     should_skip = True
