@@ -1,6 +1,9 @@
 # Travel Guide Chatbot
 There are two ways to run this chatbot, the first one being easier and less time-consuming than the second. Both will result in our python code connecting to the dialogflow chatbot, but the first option is more stable than the first.
 
+> **_NOTE:_**  We have already scraped knowledge bases for the following countries: United States, Canada, Mexico, Brazil, Argentina, United Kingdom, France, Germany, Italy, Spain, Russia, China, Japan, South Korea, India, Australia, New Zealand, Egypt, South Africa, Nigeria, and Croatia. We have implemented dynamic web scraping for other countries, but it will take a few minutes to scrape, and you may get errors during that time period.
+
+
 
 ## Option 1 - Recommended but requires local installation
 
@@ -35,6 +38,8 @@ There are two ways to run this chatbot, the first one being easier and less time
 To allow for easy testing purposes, you can simply click on this dialog flow generated [link](https://console.dialogflow.com/api-client/demo/embedded/1ed112ff-ab5a-4e7a-96d4-dd4d7c29b09c) that will allow you to simply talk to to our chatbot running at this link. We have accomplished this by building a Flask web server that is integrated with Dialogflow via webhooks.
 
 However, this option requires that we are actively running our Flask web server from one of our computers. Please message us before you attempt to run the project this way so we can ensure it is running for you. You can reach us on Discord at fasnow#7731 or cady#6453 (preferred for faster responses) or by email at fcd180001@utdallas.edu or cmb180010@utdallas.edu.
+
+Additionally, there is the constraint that you should only mention a country's name once when you talk about it. Meaning, once you have told the chatbot what country you are interested in, you should not refer to the country by name again (e.g. do not say "What kind of food does Italy have?", say "What kind of food do they have?"). This is due to a constraint in how we can make webhook requests.
 
 Note that this method of running our program is unstable due to webhook constraints imposed by the free version of Dialogflow.
 
