@@ -113,7 +113,7 @@ def search_knowledge_base_by_intent(session, session_client, user_input, kb_id, 
       the raw response from the Dialogflow knowledge base query
     """
     response = make_dialogflow_request(session, session_client, user_input, kb_id)
-    if response is None:
+    if response is None or current_kbid_doc_mapping is None:
         return None
     knowledge_base_answers = response.query_result.knowledge_answers.answers
     for result in response.alternative_query_results:

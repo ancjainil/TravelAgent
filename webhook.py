@@ -46,19 +46,19 @@ def webhook():
     session_client = dialogflow.SessionsClient()
 
     user_input = payload["queryResult"]["queryText"]
-    user_input = user_input.lower()
-    if "countries" in user_dict and \
-            len(user_dict["countries"]) > 0 and \
-            user_dict["countries"][-1].lower() in user_input:
-        user_input = re.sub(user_dict["countries"][-1].lower(), "", user_input)
-        response = make_dialogflow_request(session, session_client, user_input, None)
-        response_dict = MessageToDict(response.query_result._pb)
-        parameters_dict = response_dict['parameters']
-    else:
-        parameters_dict = payload["queryResult"]['parameters']
+    # user_input = user_input.lower()
+    # if "countries" in user_dict and \
+    #         len(user_dict["countries"]) > 0 and \
+    #         user_dict["countries"][-1].lower() in user_input:
+    #     user_input = re.sub(user_dict["countries"][-1].lower(), "", user_input)
+    #     response2 = make_dialogflow_request(session, session_client, user_input, None)
+    #     print(response2)
+    #     response_dict = MessageToDict(response2.query_result._pb)
+    #     parameters_dict = response_dict['parameters']
+    parameters_dict = payload["queryResult"]['parameters']
 
     # person detected
-    if 'person' in parameters_dict and 'name' in parameters_dict['person']:
+    if 'person' in parameters_dict and 'name' in parameters_dict['person'] and is_first_request:
             user_name = parameters_dict['person']['name']
             print("Log - Detected name: " + user_name)
             filename = f"{user_name}.json"
@@ -68,35 +68,44 @@ def webhook():
             else:
                 user_dict = load_user_data(filename)
 
-
+                # user has previous countries in their JSON
                 if len(user_dict["countries"]) > 0:
                     last_country = user_dict["countries"][-1]
-                    response[
-                        "fulfillmentText"] = f"Welcome back {user_name}, let's continue researching your trip to {last_country}!"
+                    response["fulfillmentText"] = f"Welcome back {user_name}, let's continue researching your trip to {last_country}!"
 
                     session = session_client.session_path(PROJECT_ID, user_name)
-                    print(f"DEBUG LOG session - {session}")
-                    country = last_country
-                    current_kbid = get_kb_name_of_country(country)
-                    current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
-                    return response
+
+                    # load the current country context into Dialogflow
+                    user_input = f"I want to go to {last_country}"
+                    make_dialogflow_request(session, session_client, user_input, None)
+
+                    # avoid showing the response from this extra request to the user
+                    response = {}
+                    parameters_dict['geo-country'] = last_country
+
+                # existing user has never indicated interest in a country
                 else:
-                    response["fulfillmentText"] = f"Welcome back {user_name}, how can I help you today?"
+                    response["fulfillmentText"] = f"Welcome back {user_name}, please let me know the name of a country you are interested in."
                     session = session_client.session_path(PROJECT_ID, user_name)
                     return response
 
-    # returning user detected
+            # only update user info at start of conversation
+            is_first_request = False
 
+    # new country detected, so you should switch context
     if 'geo-country' in parameters_dict and parameters_dict['geo-country'] != '':
         country = parameters_dict['geo-country']
         print("LOG - Detected country: " + country)
 
         if country in CURRENT_COUNTRIES:
             current_kbid = get_kb_name_of_country(country)
+            print("KBID Detected: " + current_kbid)
         else:
             # build a knowledge base for that country if it does not already exist
             current_kbid = create_knowledge_base(country)
+            print("KBID Created: " + current_kbid)
             CURRENT_COUNTRIES.append(country)
+            response["fulfillmentText"] += "Warning: populating the knowledge base may take a few minutes"
 
         current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
         if country in user_dict["countries"]:
@@ -112,7 +121,7 @@ def webhook():
     if "fulfillmentText" in query_result:
         fulfill = query_result["fulfillmentText"]
     if 'intent' in payload["queryResult"]:
-        print("DEBUG LOG  - IN ITENT")
+        print("DEBUG LOG  - IN INTENT")
         intent_name = query_result['intent']['displayName']
         print("LOG - Detected user intent: " + intent_name)
         # dislike
@@ -167,6 +176,8 @@ def webhook():
                 if filename:
                     save_user_data(filename, user_dict)
                 print("DEBUG LOG - HERE 1")
+
+                current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid,
                                                               intent_name, current_kbid_doc_mapping)
                 if kb_response is None:
@@ -183,6 +194,7 @@ def webhook():
                     response["fulfillmentText"] = f"{fulfill} {content}"
                     return response
             else:
+                print('here2')
                 response["fulfillmentText"] = fulfill
                 return response
     else:
