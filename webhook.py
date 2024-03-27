@@ -179,7 +179,7 @@ def webhook():
 
                 current_kbid_doc_mapping = map_doc_name_to_id(current_kbid)
                 kb_response = search_knowledge_base_by_intent(session, session_client, user_input, current_kbid,
-                                                              intent_name, current_kbid_doc_mapping)
+                                                                intent_name, current_kbid_doc_mapping)
                 if kb_response is None:
                     print("DEBUG LOG - HERE 2")
                     kb_response = ''
